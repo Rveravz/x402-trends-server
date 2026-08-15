@@ -1,0 +1,33 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Rob's 3-in-1 AI Mega-Tools",
+    "version": "1.0.0",
+    "description": "Paid x402 tools for AI agents including Web Scraping, Receipt parsing, and Fresh Trends."
+  },
+  "servers": [
+    {
+      "url": "https://x402-trends-server.onrender.com"
+    }
+  ],
+  "paths": {
+    "/api/trends": {
+      "get": {
+        "summary": "Get latest news trends",
+        "description": "Returns top 5 global space news articles. Costs $0.02 USDC."
+      }
+    },
+    "/api/scrape": {
+      "post": {
+        "summary": "Scrape raw text from any webpage",
+        "description": "Bypasses blocks to clean text. Costs $0.005 USDC."
+      }
+    },
+    "/api/parse-receipt": {
+      "post": {
+        "summary": "Parse business receipt layouts",
+        "description": "Extracts store totals, line items, and tax info. Costs $0.05 USDC."
+      }
+    }
+  }
+}
