@@ -5,12 +5,8 @@ const { paymentMiddleware, x402ResourceServer } = require('@x402/express');
 const app = express(); 
 const PORT = process.env.PORT || 3000; 
 
-app.use(express.json()); // Allows the server to read data sent to it 
+app.use(express.json()); 
 
-// ========================================================================= 
-// 💳 1. THE 3-IN-1 CONFIGURATION LIST 
-// We set a unique price, description, and market flag for each tool here.
-// ========================================================================= 
 const MY_WALLET = "0xF61F957D9aC432309219549b1Ae79Ae8b7C71fF5"; 
 
 const routesConfig = { 
@@ -31,72 +27,46 @@ const routesConfig = {
   } 
 }; 
 
-// Create the payment shield engine 
 const resourceServer = new x402ResourceServer(); 
 app.use(paymentMiddleware(routesConfig, resourceServer)); 
 
-// ========================================================================= 
-// 🚀 TOOL #1: THE WEB WALL BREAKER (Web Scraper) 
-// ========================================================================= 
+// --- TOOL #1: SCRAPER ---
 app.post('/api/scrape', async (req, res) => { 
   try { 
     const { url } = req.body; 
-    if (!url) return res.status(400).json({ error: "Please provide a URL to scrape." }); 
-
+    if (!url) return res.status(400).json({ error: "Please provide a URL." }); 
     const response = await axios.get(url); 
-    const cleanText = response.data.replace(/<[^>]*>/g, '').substring(0, 1000); // Strips HTML tags 
-
-    res.json({ 
-      status: "Success", 
-      message: "Payment verified. Webpage scraped successfully.", 
-      urlRequested: url, 
-      extractedText: cleanText + "... [truncated]" 
-    }); 
+    const cleanText = response.data.replace(/<[^>]*>/g, '').substring(0, 1000); 
+    res.json({ status: "Success", extractedText: cleanText + "..." }); 
   } catch (error) { 
-    res.status(500).json({ error: "Failed to scrape the webpage. The site might be heavily guarded." }); 
+    res.status(500).json({ error: "Failed to scrape." }); 
   } 
 }); 
 
-// ========================================================================= 
-// 🚀 TOOL #2: THE RECEIPT & INVOICE READER (Document Parser) 
-// ========================================================================= 
+// --- TOOL #2: RECEIPT PARSER ---
 app.post('/api/parse-receipt', async (req, res) => { 
   res.json({ 
     status: "Success", 
-    message: "Payment verified. Receipt parsed successfully.", 
-    parsedData: { 
-      vendor: "Target Stores", 
-      date: "2026-08-15", 
-      itemsDetected: ["Developer Notebook", "USB-C Cable", "Energy Drink"], 
-      tax: 3.40, 
-      totalAmountUsd: 45.20 
-    } 
+    parsedData: { vendor: "Target Stores", totalAmountUsd: 45.20 } 
   }); 
 }); 
 
-// ========================================================================= 
-// 🚀 TOOL #3: THE FRESH TRENDS BROKER
-// ========================================================================= 
+// --- TOOL #3: TREND BROKER ---
 app.get('/api/trends', async (req, res) => { 
   try { 
     const response = await axios.get('https://spaceflightnewsapi.net'); 
-    const trends = response.data.results.map(article => ({ 
-      title: article.title, 
-      summary: article.summary, 
-      publishedAt: article.published_at 
-    })); 
-
-    res.json({ 
-      status: "Success", 
-      message: "Payment verified. Here are the latest trends.", 
-      data: trends 
-    }); 
+    const trends = response.data.results.map(article => ({ title: article.title })); 
+    res.json({ status: "Success", data: trends }); 
   } catch (error) { 
-    res.status(500).json({ error: "Failed to gather latest trends." }); 
+    res.status(500).json({ error: "Failed to gather trends." }); 
   } 
 }); 
 
-// Start your upgraded server 
+// 🌟 NEW DOOR: THIS HANDS OVER THE MANUAL FILE TO THE MARKETPLACE CRAWLERS
+app.get('/openapi.json', (req, res) => {
+  res.sendFile(__dirname + '/openapi.json');
+});
+
 app.listen(PORT, () => { 
-  console.log(`🚀 3-in-1 x402 Mega-Server is live on http://localhost:${PORT}`); 
+  console.log(`🚀 Server is live on port ${PORT}`); 
 });
