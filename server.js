@@ -18,15 +18,35 @@ import {
 // ============================================================================
 // X402 TRENDS SERVER
 // PRODUCTION - BASE MAINNET + BAZAAR DISCOVERY
+// VERSION 2.1.1
 // ============================================================================
 
 const app = express();
 
+// ============================================================================
+// RENDER HTTPS / REVERSE PROXY FIX
+//
+// Render terminates HTTPS before forwarding traffic to this Node server.
+// Trust Render's forwarded protocol information so Express/x402 knows that
+// the original public request used HTTPS.
+//
+// This fixes Bazaar advertising:
+// http://x402-trends-server.onrender.com/...
+//
+// and changes it to:
+// https://x402-trends-server.onrender.com/...
+// ============================================================================
+
+app.set("trust proxy", true);
+
 const PORT = Number(process.env.PORT || 3000);
 const HOST = "0.0.0.0";
 
+// Base Mainnet
 const NETWORK = "eip155:8453";
 
+// Your receiving wallet is stored in Render.
+// Never put a wallet private key in this server.
 const PAY_TO = process.env.X402_PAY_TO;
 
 // ============================================================================
@@ -37,26 +57,17 @@ if (
   !PAY_TO ||
   !/^0x[a-fA-F0-9]{40}$/.test(PAY_TO)
 ) {
-  console.error(
-    "❌ Missing or invalid X402_PAY_TO."
-  );
-
+  console.error("❌ Missing or invalid X402_PAY_TO.");
   process.exit(1);
 }
 
 if (!process.env.CDP_API_KEY_ID) {
-  console.error(
-    "❌ Missing CDP_API_KEY_ID."
-  );
-
+  console.error("❌ Missing CDP_API_KEY_ID.");
   process.exit(1);
 }
 
 if (!process.env.CDP_API_KEY_SECRET) {
-  console.error(
-    "❌ Missing CDP_API_KEY_SECRET."
-  );
-
+  console.error("❌ Missing CDP_API_KEY_SECRET.");
   process.exit(1);
 }
 
@@ -79,15 +90,12 @@ app.use(
 app.get("/", (_req, res) => {
   res.json({
     name: "x402 Trends Server",
-
-    version: "2.1.0",
-
+    version: "2.1.1",
     status: "online",
 
     mode: "PRODUCTION",
 
     network: NETWORK,
-
     networkName: "Base Mainnet",
 
     currency: "USDC",
@@ -100,24 +108,18 @@ app.get("/", (_req, res) => {
 
     endpoints: {
       health: "/health",
-
       openapi: "/openapi.json",
 
       paid: {
         trends: "/api/trends",
-
         scrape: "/api/scrape",
-
-        parseReceipt:
-          "/api/parse-receipt",
+        parseReceipt: "/api/parse-receipt",
       },
     },
 
     pricing: {
       trends: "$0.02",
-
       scrape: "$0.005",
-
       parseReceipt: "$0.05",
     },
   });
@@ -131,24 +133,21 @@ app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
 
-    service:
-      "x402-trends-server",
+    service: "x402-trends-server",
 
-    version: "2.1.0",
+    version: "2.1.1",
 
     mode: "PRODUCTION",
 
     network: NETWORK,
 
-    networkName:
-      "Base Mainnet",
+    networkName: "Base Mainnet",
 
     currency: "USDC",
 
     bazaarDiscovery: true,
 
-    timestamp:
-      new Date().toISOString(),
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -156,45 +155,35 @@ app.get("/health", (_req, res) => {
 // OPENAPI
 // ============================================================================
 
-const __filename =
-  fileURLToPath(
-    import.meta.url
-  );
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const __dirname =
-  path.dirname(
-    __filename
-  );
+app.get("/openapi.json", (_req, res) => {
+  res.sendFile(
+    path.join(__dirname, "openapi.json"),
 
-app.get(
-  "/openapi.json",
-
-  (_req, res) => {
-    res.sendFile(
-      path.join(
-        __dirname,
-        "openapi.json"
-      ),
-
-      (error) => {
-        if (
-          error &&
-          !res.headersSent
-        ) {
-          res
-            .status(404)
-            .json({
-              error:
-                "openapi.json was not found.",
-            });
-        }
+    (error) => {
+      if (
+        error &&
+        !res.headersSent
+      ) {
+        res.status(404).json({
+          error: "openapi.json was not found.",
+        });
       }
-    );
-  }
-);
+    }
+  );
+});
 
 // ============================================================================
 // COINBASE CDP FACILITATOR
+//
+// Automatically reads:
+//
+// CDP_API_KEY_ID
+// CDP_API_KEY_SECRET
+//
+// from your Render Environment Variables.
 // ============================================================================
 
 const facilitatorClient =
@@ -203,9 +192,8 @@ const facilitatorClient =
 // ============================================================================
 // X402 RESOURCE SERVER
 //
-// Register:
-// 1. Base Mainnet exact EVM payments
-// 2. Bazaar discovery extension
+// 1. Register Base Mainnet EVM payments.
+// 2. Register Bazaar discovery.
 // ============================================================================
 
 const resourceServer =
@@ -221,7 +209,10 @@ const resourceServer =
     );
 
 // ============================================================================
-// PAYMENT LOGGING
+// SUCCESSFUL PAYMENT LOGGER
+//
+// Runs after a payment successfully settles.
+// Watch these messages inside Render Logs.
 // ============================================================================
 
 resourceServer.onAfterSettle(
@@ -231,23 +222,16 @@ resourceServer.onAfterSettle(
   }) => {
     const amount =
       String(
-        requirements?.amount ||
-          ""
+        requirements?.amount || ""
       );
 
     const purchasedByAmount = {
-      "5000":
-        "POST /api/scrape",
-
-      "20000":
-        "GET /api/trends",
-
-      "50000":
-        "POST /api/parse-receipt",
+      "5000": "POST /api/scrape",
+      "20000": "GET /api/trends",
+      "50000": "POST /api/parse-receipt",
     };
 
     console.log("");
-
     console.log(
       "==================================================="
     );
@@ -262,9 +246,7 @@ resourceServer.onAfterSettle(
 
     console.log(
       `Purchased: ${
-        purchasedByAmount[
-          amount
-        ] ||
+        purchasedByAmount[amount] ||
         "paid API resource"
       }`
     );
@@ -306,9 +288,14 @@ resourceServer.onAfterSettle(
     );
 
     console.log(
-      `Time: ${
-        new Date().toISOString()
+      `Asset: ${
+        requirements?.asset ||
+        "network default USDC"
       }`
+    );
+
+    console.log(
+      `Time: ${new Date().toISOString()}`
     );
 
     console.log(
@@ -322,6 +309,10 @@ resourceServer.onAfterSettle(
 // ============================================================================
 // BAZAAR DISCOVERY METADATA
 // ============================================================================
+
+// ---------------------------------------------------------------------------
+// /api/trends
+// ---------------------------------------------------------------------------
 
 const trendsDiscovery =
   declareDiscoveryExtension({
@@ -341,13 +332,11 @@ const trendsDiscovery =
 
         payment: "verified",
 
-        network:
-          "eip155:8453",
+        network: "eip155:8453",
 
         currency: "USDC",
 
-        source:
-          "Spaceflight News API",
+        source: "Spaceflight News API",
 
         count: 5,
 
@@ -469,6 +458,10 @@ const trendsDiscovery =
     },
   });
 
+// ---------------------------------------------------------------------------
+// /api/scrape
+// ---------------------------------------------------------------------------
+
 const scrapeDiscovery =
   declareDiscoveryExtension({
     bodyType: "json",
@@ -547,10 +540,9 @@ const scrapeDiscovery =
             type: "string",
           },
 
-          charactersAvailable:
-            {
-              type: "integer",
-            },
+          charactersAvailable: {
+            type: "integer",
+          },
 
           truncated: {
             type: "boolean",
@@ -569,6 +561,10 @@ const scrapeDiscovery =
       },
     },
   });
+
+// ---------------------------------------------------------------------------
+// /api/parse-receipt
+// ---------------------------------------------------------------------------
 
 const receiptDiscovery =
   declareDiscoveryExtension({
@@ -613,26 +609,33 @@ const receiptDiscovery =
         parsedData: {
           items: [
             {
-              name: "Coffee",
+              name:
+                "Coffee",
 
-              amount: 4.5,
+              amount:
+                4.5,
             },
 
             {
               name:
                 "Sandwich",
 
-              amount: 8.99,
+              amount:
+                8.99,
             },
           ],
 
-          subtotal: 13.49,
+          subtotal:
+            13.49,
 
-          tax: 1.08,
+          tax:
+            1.08,
 
-          total: 14.57,
+          total:
+            14.57,
 
-          linesDetected: 4,
+          linesDetected:
+            4,
         },
       },
 
@@ -699,10 +702,9 @@ const receiptDiscovery =
                 ],
               },
 
-              linesDetected:
-                {
-                  type: "integer",
-                },
+              linesDetected: {
+                type: "integer",
+              },
             },
           },
         },
@@ -716,12 +718,12 @@ const receiptDiscovery =
   });
 
 // ============================================================================
-// X402 ROUTES + BAZAAR
+// X402 PAID ROUTE CONFIGURATION + BAZAAR
 // ============================================================================
 
 const routesConfig = {
   // --------------------------------------------------------------------------
-  // TRENDS
+  // $0.02 - SPACE TRENDS
   // --------------------------------------------------------------------------
 
   "GET /api/trends": {
@@ -749,7 +751,7 @@ const routesConfig = {
   },
 
   // --------------------------------------------------------------------------
-  // WEB SCRAPER
+  // $0.005 - WEB SCRAPER
   // --------------------------------------------------------------------------
 
   "POST /api/scrape": {
@@ -777,7 +779,7 @@ const routesConfig = {
   },
 
   // --------------------------------------------------------------------------
-  // RECEIPT PARSER
+  // $0.05 - RECEIPT PARSER
   // --------------------------------------------------------------------------
 
   "POST /api/parse-receipt": {
@@ -806,7 +808,7 @@ const routesConfig = {
 };
 
 // ============================================================================
-// ENABLE X402
+// ENABLE X402 PAYMENT PROTECTION
 // ============================================================================
 
 app.use(
@@ -842,20 +844,25 @@ function isPrivateIPv4(
     return true;
   }
 
-  const [a, b] = parts;
+  const [a, b] =
+    parts;
 
+  // 0.0.0.0/8
   if (a === 0) {
     return true;
   }
 
+  // 10.0.0.0/8
   if (a === 10) {
     return true;
   }
 
+  // 127.0.0.0/8
   if (a === 127) {
     return true;
   }
 
+  // 100.64.0.0/10
   if (
     a === 100 &&
     b >= 64 &&
@@ -864,6 +871,7 @@ function isPrivateIPv4(
     return true;
   }
 
+  // 169.254.0.0/16
   if (
     a === 169 &&
     b === 254
@@ -871,6 +879,7 @@ function isPrivateIPv4(
     return true;
   }
 
+  // 172.16.0.0/12
   if (
     a === 172 &&
     b >= 16 &&
@@ -879,6 +888,7 @@ function isPrivateIPv4(
     return true;
   }
 
+  // 192.168.0.0/16
   if (
     a === 192 &&
     b === 168
@@ -886,6 +896,7 @@ function isPrivateIPv4(
     return true;
   }
 
+  // Multicast/reserved
   if (a >= 224) {
     return true;
   }
@@ -906,13 +917,19 @@ function isPrivateIPv6(
     return true;
   }
 
+  // Unique local IPv6
   if (
-    value.startsWith("fc") ||
-    value.startsWith("fd")
+    value.startsWith(
+      "fc"
+    ) ||
+    value.startsWith(
+      "fd"
+    )
   ) {
     return true;
   }
 
+  // Link-local IPv6
   if (
     /^fe[89ab]/.test(
       value
@@ -921,6 +938,7 @@ function isPrivateIPv6(
     return true;
   }
 
+  // IPv4-mapped IPv6
   if (
     value.startsWith(
       "::ffff:"
@@ -1014,9 +1032,7 @@ async function validatePublicUrl(
     );
   }
 
-  if (
-    isIP(hostname)
-  ) {
+  if (isIP(hostname)) {
     if (
       isPrivateAddress(
         hostname
@@ -1035,7 +1051,6 @@ async function validatePublicUrl(
       hostname,
       {
         all: true,
-
         verbatim: true,
       }
     );
@@ -1084,10 +1099,12 @@ app.get(
           "https://api.spaceflightnewsapi.net/v4/articles/",
 
           {
-            timeout: 15000,
+            timeout:
+              15000,
 
             params: {
-              limit: 5,
+              limit:
+                5,
 
               ordering:
                 "-published_at",
@@ -1098,7 +1115,7 @@ app.get(
                 "application/json",
 
               "User-Agent":
-                "x402-trends-server/2.1",
+                "x402-trends-server/2.1.1",
             },
           }
         );
@@ -1114,7 +1131,10 @@ app.get(
 
       const trends =
         articles
-          .slice(0, 5)
+          .slice(
+            0,
+            5
+          )
           .map(
             (
               article
@@ -1145,7 +1165,7 @@ app.get(
             })
           );
 
-      res.json({
+      return res.json({
         status:
           "success",
 
@@ -1179,7 +1199,7 @@ app.get(
           error.message
       );
 
-      res
+      return res
         .status(502)
         .json({
           error:
@@ -1233,9 +1253,13 @@ app.post(
           targetUrl,
 
           {
-            timeout: 12000,
+            timeout:
+              12000,
 
-            maxRedirects: 0,
+            // Disable redirects to prevent a public URL
+            // from redirecting to a private/internal address.
+            maxRedirects:
+              0,
 
             responseType:
               "text",
@@ -1245,7 +1269,7 @@ app.post(
 
             headers: {
               "User-Agent":
-                "Mozilla/5.0 (compatible; x402-trends-server/2.1)",
+                "Mozilla/5.0 (compatible; x402-trends-server/2.1.1)",
 
               Accept:
                 "text/html,text/plain;q=0.9,*/*;q=0.5",
@@ -1350,7 +1374,7 @@ app.post(
       const MAX_LENGTH =
         5000;
 
-      res.json({
+      return res.json({
         status:
           "success",
 
@@ -1422,7 +1446,7 @@ app.post(
           });
       }
 
-      res
+      return res
         .status(500)
         .json({
           error:
@@ -1433,7 +1457,7 @@ app.post(
 );
 
 // ============================================================================
-// RECEIPT FUNCTIONS
+// RECEIPT PARSER FUNCTIONS
 // ============================================================================
 
 function extractMoney(
@@ -1453,7 +1477,8 @@ function extractMoney(
 
   const value =
     matches[
-      matches.length - 1
+      matches.length -
+        1
     ][1].replace(
       /,/g,
       ""
@@ -1525,7 +1550,6 @@ function parseReceipt(
       lines,
       [
         /\bsubtotal\b/i,
-
         /\bsub total\b/i,
       ]
     );
@@ -1535,7 +1559,6 @@ function parseReceipt(
       lines,
       [
         /\btax\b/i,
-
         /\bsales tax\b/i,
       ]
     );
@@ -1545,11 +1568,8 @@ function parseReceipt(
       lines,
       [
         /\bgrand total\b/i,
-
         /\bamount due\b/i,
-
         /\bbalance due\b/i,
-
         /^total\b/i,
       ]
     );
@@ -1557,7 +1577,8 @@ function parseReceipt(
   const ignored =
     /\b(subtotal|sub total|tax|grand total|amount due|balance due|total|change|cash|visa|mastercard|amex|credit|debit)\b/i;
 
-  const items = [];
+  const items =
+    [];
 
   for (
     const line of
@@ -1577,7 +1598,8 @@ function parseReceipt(
       );
 
     if (
-      amount === null
+      amount ===
+      null
     ) {
       continue;
     }
@@ -1588,13 +1610,11 @@ function parseReceipt(
           /(?:\$|USD\s*)?-?\d{1,7}(?:,\d{3})*(?:\.\d{2})\s*$/i,
           ""
         )
-
         .trim();
 
     if (name) {
       items.push({
         name,
-
         amount,
       });
     }
@@ -1602,11 +1622,8 @@ function parseReceipt(
 
   return {
     items,
-
     subtotal,
-
     tax,
-
     total,
 
     linesDetected:
@@ -1660,7 +1677,7 @@ app.post(
           });
       }
 
-      res.json({
+      return res.json({
         status:
           "success",
 
@@ -1685,7 +1702,7 @@ app.post(
         error.message
       );
 
-      res
+      return res
         .status(500)
         .json({
           error:
@@ -1704,7 +1721,7 @@ app.use(
     _req,
     res
   ) => {
-    res
+    return res
       .status(404)
       .json({
         error:
@@ -1713,15 +1730,10 @@ app.use(
         availableEndpoints:
           [
             "GET /",
-
             "GET /health",
-
             "GET /openapi.json",
-
             "GET /api/trends",
-
             "POST /api/scrape",
-
             "POST /api/parse-receipt",
           ],
       });
@@ -1729,7 +1741,7 @@ app.use(
 );
 
 // ============================================================================
-// ERROR HANDLER
+// GLOBAL ERROR HANDLER
 // ============================================================================
 
 app.use(
@@ -1753,7 +1765,7 @@ app.use(
       );
     }
 
-    res
+    return res
       .status(500)
       .json({
         error:
@@ -1763,7 +1775,7 @@ app.use(
 );
 
 // ============================================================================
-// START
+// START SERVER
 // ============================================================================
 
 app.listen(
@@ -1783,6 +1795,10 @@ app.listen(
 
     console.log(
       "==================================================="
+    );
+
+    console.log(
+      "Version: 2.1.1"
     );
 
     console.log(
@@ -1811,6 +1827,10 @@ app.listen(
 
     console.log(
       "Bazaar Discovery: ENABLED"
+    );
+
+    console.log(
+      "Render Trust Proxy: ENABLED"
     );
 
     console.log("");
