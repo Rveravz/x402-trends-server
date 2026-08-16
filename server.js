@@ -1,7 +1,5 @@
 import express from "express";
 import axios from "axios";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
@@ -9,54 +7,32 @@ import { paymentMiddleware } from "@x402/express";
 import { x402ResourceServer } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { createCdpFacilitatorClient } from "@coinbase/cdp-sdk/x402";
-
 import {
   declareDiscoveryExtension,
   bazaarResourceServerExtension,
 } from "@x402/extensions/bazaar";
 
 // ============================================================================
-// X402 TRENDS SERVER
-// PRODUCTION - BASE MAINNET + BAZAAR DISCOVERY
-// VERSION 2.1.1
+// x402 AGENT DATA API
+// VERSION 2.2.0
+// Base Mainnet + Coinbase CDP + Bazaar Discovery
 // ============================================================================
 
 const app = express();
 
-// ============================================================================
-// RENDER HTTPS / REVERSE PROXY FIX
-//
-// Render terminates HTTPS before forwarding traffic to this Node server.
-// Trust Render's forwarded protocol information so Express/x402 knows that
-// the original public request used HTTPS.
-//
-// This fixes Bazaar advertising:
-// http://x402-trends-server.onrender.com/...
-//
-// and changes it to:
-// https://x402-trends-server.onrender.com/...
-// ============================================================================
-
 app.set("trust proxy", true);
+app.disable("x-powered-by");
+app.use(express.json({ limit: "1mb" }));
 
+const VERSION = "2.2.0";
 const PORT = Number(process.env.PORT || 3000);
 const HOST = "0.0.0.0";
-
-// Base Mainnet
 const NETWORK = "eip155:8453";
 
-// Your receiving wallet is stored in Render.
-// Never put a wallet private key in this server.
 const PAY_TO = process.env.X402_PAY_TO;
+const SERVICE_CONTACT = process.env.SERVICE_CONTACT;
 
-// ============================================================================
-// REQUIRED ENVIRONMENT VARIABLES
-// ============================================================================
-
-if (
-  !PAY_TO ||
-  !/^0x[a-fA-F0-9]{40}$/.test(PAY_TO)
-) {
+if (!PAY_TO || !/^0x[a-fA-F0-9]{40}$/.test(PAY_TO)) {
   console.error("❌ Missing or invalid X402_PAY_TO.");
   process.exit(1);
 }
@@ -71,83 +47,117 @@ if (!process.env.CDP_API_KEY_SECRET) {
   process.exit(1);
 }
 
-// ============================================================================
-// EXPRESS CONFIG
-// ============================================================================
+if (!SERVICE_CONTACT || !SERVICE_CONTACT.includes("@")) {
+  console.error("❌ Missing SERVICE_CONTACT.");
+  console.error(
+    'Add a Render environment variable such as: SERVICE_CONTACT="x402 Agent Data API your-email@example.com"'
+  );
+  process.exit(1);
+}
 
-app.disable("x-powered-by");
-
-app.use(
-  express.json({
-    limit: "1mb",
-  })
-);
+const APP_USER_AGENT =
+  `${SERVICE_CONTACT} x402-agent-data-api/${VERSION}`;
 
 // ============================================================================
-// FREE HOME ENDPOINT
+// FREE ROUTES
 // ============================================================================
 
 app.get("/", (_req, res) => {
   res.json({
-    name: "x402 Trends Server",
-    version: "2.1.1",
+    name: "x402 Agent Data API",
+    version: VERSION,
     status: "online",
-
     mode: "PRODUCTION",
 
     network: NETWORK,
     networkName: "Base Mainnet",
 
     currency: "USDC",
-
     paymentProtocol: "x402",
 
     bazaarDiscovery: true,
 
     receivingWallet: PAY_TO,
 
-    endpoints: {
-      health: "/health",
-      openapi: "/openapi.json",
-
-      paid: {
-        trends: "/api/trends",
-        scrape: "/api/scrape",
-        parseReceipt: "/api/parse-receipt",
+    paidEndpoints: {
+      scrape: {
+        method: "POST",
+        path: "/api/scrape",
+        price: "$0.005",
       },
-    },
 
-    pricing: {
-      trends: "$0.02",
-      scrape: "$0.005",
-      parseReceipt: "$0.05",
+      exchangeRate: {
+        method: "GET",
+        path: "/api/exchange-rate",
+        price: "$0.01",
+      },
+
+      trends: {
+        method: "GET",
+        path: "/api/trends",
+        price: "$0.02",
+      },
+
+      weather: {
+        method: "GET",
+        path: "/api/weather",
+        price: "$0.02",
+      },
+
+      urlAnalyze: {
+        method: "POST",
+        path: "/api/url-analyze",
+        price: "$0.03",
+      },
+
+      parseReceipt: {
+        method: "POST",
+        path: "/api/parse-receipt",
+        price: "$0.05",
+      },
+
+      newsBrief: {
+        method: "GET",
+        path: "/api/news-brief",
+        price: "$0.05",
+      },
+
+      secCompany: {
+        method: "GET",
+        path: "/api/sec-company",
+        price: "$0.05",
+      },
+
+      websiteResearch: {
+        method: "POST",
+        path: "/api/website-research",
+        price: "$0.10",
+      },
     },
   });
 });
-
-// ============================================================================
-// FREE HEALTH ENDPOINT
-// ============================================================================
 
 app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
 
-    service: "x402-trends-server",
+    service:
+      "x402-agent-data-api",
 
-    version: "2.1.1",
+    version:
+      VERSION,
 
-    mode: "PRODUCTION",
+    mode:
+      "PRODUCTION",
 
-    network: NETWORK,
+    network:
+      NETWORK,
 
-    networkName: "Base Mainnet",
+    bazaarDiscovery:
+      true,
 
-    currency: "USDC",
-
-    bazaarDiscovery: true,
-
-    timestamp: new Date().toISOString(),
+    timestamp:
+      new Date().toISOString(),
   });
 });
 
@@ -155,46 +165,210 @@ app.get("/health", (_req, res) => {
 // OPENAPI
 // ============================================================================
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 app.get("/openapi.json", (_req, res) => {
-  res.sendFile(
-    path.join(__dirname, "openapi.json"),
+  res.json({
+    openapi:
+      "3.1.0",
 
-    (error) => {
-      if (
-        error &&
-        !res.headersSent
-      ) {
-        res.status(404).json({
-          error: "openapi.json was not found.",
-        });
-      }
-    }
-  );
+    info: {
+      title:
+        "x402 Agent Data API",
+
+      version:
+        VERSION,
+
+      description:
+        "Paid AI-agent data tools using x402 on Base Mainnet.",
+    },
+
+    servers: [
+      {
+        url:
+          "https://x402-trends-server.onrender.com",
+      },
+    ],
+
+    paths: {
+      "/api/scrape": {
+        post: {
+          summary:
+            "Extract readable webpage text",
+
+          responses: {
+            402: {
+              description:
+                "Payment required",
+            },
+
+            200: {
+              description:
+                "Success",
+            },
+          },
+        },
+      },
+
+      "/api/exchange-rate": {
+        get: {
+          summary:
+            "Convert currencies",
+
+          responses: {
+            402: {
+              description:
+                "Payment required",
+            },
+
+            200: {
+              description:
+                "Success",
+            },
+          },
+        },
+      },
+
+      "/api/trends": {
+        get: {
+          summary:
+            "Latest spaceflight news",
+
+          responses: {
+            402: {
+              description:
+                "Payment required",
+            },
+
+            200: {
+              description:
+                "Success",
+            },
+          },
+        },
+      },
+
+      "/api/weather": {
+        get: {
+          summary:
+            "U.S. weather forecast by coordinates",
+
+          responses: {
+            402: {
+              description:
+                "Payment required",
+            },
+
+            200: {
+              description:
+                "Success",
+            },
+          },
+        },
+      },
+
+      "/api/url-analyze": {
+        post: {
+          summary:
+            "Analyze webpage structure and metadata",
+
+          responses: {
+            402: {
+              description:
+                "Payment required",
+            },
+
+            200: {
+              description:
+                "Success",
+            },
+          },
+        },
+      },
+
+      "/api/parse-receipt": {
+        post: {
+          summary:
+            "Parse receipt text",
+
+          responses: {
+            402: {
+              description:
+                "Payment required",
+            },
+
+            200: {
+              description:
+                "Success",
+            },
+          },
+        },
+      },
+
+      "/api/news-brief": {
+        get: {
+          summary:
+            "Search recent news by topic",
+
+          responses: {
+            402: {
+              description:
+                "Payment required",
+            },
+
+            200: {
+              description:
+                "Success",
+            },
+          },
+        },
+      },
+
+      "/api/sec-company": {
+        get: {
+          summary:
+            "SEC company and recent filing data",
+
+          responses: {
+            402: {
+              description:
+                "Payment required",
+            },
+
+            200: {
+              description:
+                "Success",
+            },
+          },
+        },
+      },
+
+      "/api/website-research": {
+        post: {
+          summary:
+            "Detailed website research snapshot",
+
+          responses: {
+            402: {
+              description:
+                "Payment required",
+            },
+
+            200: {
+              description:
+                "Success",
+            },
+          },
+        },
+      },
+    },
+  });
 });
 
 // ============================================================================
-// COINBASE CDP FACILITATOR
-//
-// Automatically reads:
-//
-// CDP_API_KEY_ID
-// CDP_API_KEY_SECRET
-//
-// from your Render Environment Variables.
+// X402 / COINBASE CDP / BAZAAR
 // ============================================================================
 
 const facilitatorClient =
   createCdpFacilitatorClient();
-
-// ============================================================================
-// X402 RESOURCE SERVER
-//
-// 1. Register Base Mainnet EVM payments.
-// 2. Register Bazaar discovery.
-// ============================================================================
 
 const resourceServer =
   new x402ResourceServer(
@@ -209,10 +383,7 @@ const resourceServer =
     );
 
 // ============================================================================
-// SUCCESSFUL PAYMENT LOGGER
-//
-// Runs after a payment successfully settles.
-// Watch these messages inside Render Logs.
+// SUCCESSFUL PAYMENT LOGGING
 // ============================================================================
 
 resourceServer.onAfterSettle(
@@ -220,18 +391,8 @@ resourceServer.onAfterSettle(
     result,
     requirements,
   }) => {
-    const amount =
-      String(
-        requirements?.amount || ""
-      );
-
-    const purchasedByAmount = {
-      "5000": "POST /api/scrape",
-      "20000": "GET /api/trends",
-      "50000": "POST /api/parse-receipt",
-    };
-
     console.log("");
+
     console.log(
       "==================================================="
     );
@@ -242,13 +403,6 @@ resourceServer.onAfterSettle(
 
     console.log(
       "==================================================="
-    );
-
-    console.log(
-      `Purchased: ${
-        purchasedByAmount[amount] ||
-        "paid API resource"
-      }`
     );
 
     console.log(
@@ -282,20 +436,17 @@ resourceServer.onAfterSettle(
 
     console.log(
       `Amount: ${
-        amount ||
-        "unknown"
+        String(
+          requirements?.amount ||
+          "unknown"
+        )
       } USDC base units`
     );
 
     console.log(
-      `Asset: ${
-        requirements?.asset ||
-        "network default USDC"
+      `Time: ${
+        new Date().toISOString()
       }`
-    );
-
-    console.log(
-      `Time: ${new Date().toISOString()}`
     );
 
     console.log(
@@ -307,164 +458,97 @@ resourceServer.onAfterSettle(
 );
 
 // ============================================================================
-// BAZAAR DISCOVERY METADATA
+// BAZAAR DISCOVERY HELPERS
 // ============================================================================
 
-// ---------------------------------------------------------------------------
-// /api/trends
-// ---------------------------------------------------------------------------
+function makeDiscovery({
+  input = {},
+  inputSchema,
+  outputExample,
+  outputSchema,
+  bodyType,
+}) {
+  return declareDiscoveryExtension({
+    ...(
+      bodyType
+        ? {
+            bodyType,
+          }
+        : {}
+    ),
+
+    input,
+
+    inputSchema,
+
+    output: {
+      example:
+        outputExample,
+
+      schema:
+        outputSchema,
+    },
+  });
+}
+
+const simpleObjectSchema = {
+  type:
+    "object",
+
+  additionalProperties:
+    true,
+};
+
+// ============================================================================
+// BAZAAR: SPACE TRENDS
+// ============================================================================
 
 const trendsDiscovery =
-  declareDiscoveryExtension({
+  makeDiscovery({
     input: {},
 
     inputSchema: {
-      type: "object",
+      type:
+        "object",
 
       properties: {},
 
       required: [],
     },
 
-    output: {
-      example: {
-        status: "success",
+    outputExample: {
+      status:
+        "success",
 
-        payment: "verified",
+      source:
+        "Spaceflight News API",
 
-        network: "eip155:8453",
+      count:
+        5,
 
-        currency: "USDC",
+      data: [
+        {
+          title:
+            "Example headline",
 
-        source: "Spaceflight News API",
-
-        count: 5,
-
-        retrievedAt:
-          "2026-08-16T01:00:00.000Z",
-
-        data: [
-          {
-            id: 12345,
-
-            title:
-              "Example spaceflight news headline",
-
-            summary:
-              "Summary of the latest spaceflight development.",
-
-            url:
-              "https://example.com/article",
-
-            imageUrl:
-              "https://example.com/image.jpg",
-
-            newsSite:
-              "Example News",
-
-            publishedAt:
-              "2026-08-16T00:30:00Z",
-          },
-        ],
-      },
-
-      schema: {
-        type: "object",
-
-        properties: {
-          status: {
-            type: "string",
-          },
-
-          payment: {
-            type: "string",
-          },
-
-          network: {
-            type: "string",
-          },
-
-          currency: {
-            type: "string",
-          },
-
-          source: {
-            type: "string",
-          },
-
-          count: {
-            type: "integer",
-          },
-
-          retrievedAt: {
-            type: "string",
-          },
-
-          data: {
-            type: "array",
-
-            items: {
-              type: "object",
-
-              properties: {
-                id: {},
-
-                title: {
-                  type: "string",
-                },
-
-                summary: {
-                  type: [
-                    "string",
-                    "null",
-                  ],
-                },
-
-                url: {
-                  type: "string",
-                },
-
-                imageUrl: {
-                  type: [
-                    "string",
-                    "null",
-                  ],
-                },
-
-                newsSite: {
-                  type: [
-                    "string",
-                    "null",
-                  ],
-                },
-
-                publishedAt: {
-                  type: [
-                    "string",
-                    "null",
-                  ],
-                },
-              },
-            },
-          },
+          url:
+            "https://example.com/article",
         },
-
-        required: [
-          "status",
-          "count",
-          "data",
-        ],
-      },
+      ],
     },
+
+    outputSchema:
+      simpleObjectSchema,
   });
 
-// ---------------------------------------------------------------------------
-// /api/scrape
-// ---------------------------------------------------------------------------
+// ============================================================================
+// BAZAAR: SCRAPER
+// ============================================================================
 
 const scrapeDiscovery =
-  declareDiscoveryExtension({
-    bodyType: "json",
+  makeDiscovery({
+    bodyType:
+      "json",
 
     input: {
       url:
@@ -472,16 +556,16 @@ const scrapeDiscovery =
     },
 
     inputSchema: {
-      type: "object",
+      type:
+        "object",
 
       properties: {
         url: {
-          type: "string",
+          type:
+            "string",
 
-          format: "uri",
-
-          description:
-            "Public HTTP or HTTPS webpage to fetch and extract readable text from.",
+          format:
+            "uri",
         },
       },
 
@@ -493,97 +577,256 @@ const scrapeDiscovery =
         false,
     },
 
-    output: {
-      example: {
-        status: "success",
+    outputExample: {
+      status:
+        "success",
 
-        payment: "verified",
+      urlRequested:
+        "https://example.com/",
 
-        network:
-          "eip155:8453",
-
-        currency: "USDC",
-
-        urlRequested:
-          "https://example.com/",
-
-        charactersAvailable:
-          1256,
-
-        truncated: false,
-
-        extractedText:
-          "Example Domain This domain is for use in illustrative examples...",
-      },
-
-      schema: {
-        type: "object",
-
-        properties: {
-          status: {
-            type: "string",
-          },
-
-          payment: {
-            type: "string",
-          },
-
-          network: {
-            type: "string",
-          },
-
-          currency: {
-            type: "string",
-          },
-
-          urlRequested: {
-            type: "string",
-          },
-
-          charactersAvailable: {
-            type: "integer",
-          },
-
-          truncated: {
-            type: "boolean",
-          },
-
-          extractedText: {
-            type: "string",
-          },
-        },
-
-        required: [
-          "status",
-          "urlRequested",
-          "extractedText",
-        ],
-      },
+      extractedText:
+        "Example Domain...",
     },
+
+    outputSchema:
+      simpleObjectSchema,
   });
 
-// ---------------------------------------------------------------------------
-// /api/parse-receipt
-// ---------------------------------------------------------------------------
+// ============================================================================
+// BAZAAR: EXCHANGE RATE
+// ============================================================================
 
-const receiptDiscovery =
-  declareDiscoveryExtension({
-    bodyType: "json",
-
+const exchangeDiscovery =
+  makeDiscovery({
     input: {
-      text:
-        "Coffee 4.50\nSandwich 8.99\nTax 1.08\nTotal 14.57",
+      from:
+        "USD",
+
+      to:
+        "EUR",
+
+      amount:
+        100,
     },
 
     inputSchema: {
-      type: "object",
+      type:
+        "object",
+
+      properties: {
+        from: {
+          type:
+            "string",
+        },
+
+        to: {
+          type:
+            "string",
+        },
+
+        amount: {
+          type:
+            "number",
+        },
+      },
+
+      required: [
+        "from",
+        "to",
+      ],
+    },
+
+    outputExample: {
+      status:
+        "success",
+
+      from:
+        "USD",
+
+      to:
+        "EUR",
+
+      amount:
+        100,
+
+      rate:
+        0.86,
+
+      convertedAmount:
+        86,
+    },
+
+    outputSchema:
+      simpleObjectSchema,
+  });
+
+// ============================================================================
+// BAZAAR: WEATHER
+// ============================================================================
+
+const weatherDiscovery =
+  makeDiscovery({
+    input: {
+      lat:
+        33.68,
+
+      lon:
+        -117.18,
+    },
+
+    inputSchema: {
+      type:
+        "object",
+
+      properties: {
+        lat: {
+          type:
+            "number",
+
+          minimum:
+            -90,
+
+          maximum:
+            90,
+        },
+
+        lon: {
+          type:
+            "number",
+
+          minimum:
+            -180,
+
+          maximum:
+            180,
+        },
+      },
+
+      required: [
+        "lat",
+        "lon",
+      ],
+    },
+
+    outputExample: {
+      status:
+        "success",
+
+      source:
+        "NOAA National Weather Service",
+
+      location: {
+        city:
+          "Example City",
+
+        state:
+          "CA",
+      },
+
+      periods: [
+        {
+          name:
+            "Tonight",
+
+          temperature:
+            65,
+
+          temperatureUnit:
+            "F",
+
+          shortForecast:
+            "Mostly Clear",
+        },
+      ],
+    },
+
+    outputSchema:
+      simpleObjectSchema,
+  });
+
+// ============================================================================
+// BAZAAR: URL ANALYZER
+// ============================================================================
+
+const urlAnalyzeDiscovery =
+  makeDiscovery({
+    bodyType:
+      "json",
+
+    input: {
+      url:
+        "https://example.com",
+    },
+
+    inputSchema: {
+      type:
+        "object",
+
+      properties: {
+        url: {
+          type:
+            "string",
+
+          format:
+            "uri",
+        },
+      },
+
+      required: [
+        "url",
+      ],
+
+      additionalProperties:
+        false,
+    },
+
+    outputExample: {
+      status:
+        "success",
+
+      url:
+        "https://example.com/",
+
+      title:
+        "Example Domain",
+
+      wordCount:
+        350,
+
+      headings: [
+        "Example Domain",
+      ],
+
+      linkCount:
+        4,
+    },
+
+    outputSchema:
+      simpleObjectSchema,
+  });
+
+// ============================================================================
+// BAZAAR: RECEIPT PARSER
+// ============================================================================
+
+const receiptDiscovery =
+  makeDiscovery({
+    bodyType:
+      "json",
+
+    input: {
+      text:
+        "Coffee 4.50\nTax 0.36\nTotal 4.86",
+    },
+
+    inputSchema: {
+      type:
+        "object",
 
       properties: {
         text: {
-          type: "string",
-
-          description:
-            "Raw receipt text containing items, prices, tax, subtotal or total values.",
+          type:
+            "string",
         },
       },
 
@@ -595,180 +838,250 @@ const receiptDiscovery =
         false,
     },
 
-    output: {
-      example: {
-        status: "success",
+    outputExample: {
+      status:
+        "success",
 
-        payment: "verified",
+      parsedData: {
+        items: [
+          {
+            name:
+              "Coffee",
 
-        network:
-          "eip155:8453",
-
-        currency: "USDC",
-
-        parsedData: {
-          items: [
-            {
-              name:
-                "Coffee",
-
-              amount:
-                4.5,
-            },
-
-            {
-              name:
-                "Sandwich",
-
-              amount:
-                8.99,
-            },
-          ],
-
-          subtotal:
-            13.49,
-
-          tax:
-            1.08,
-
-          total:
-            14.57,
-
-          linesDetected:
-            4,
-        },
-      },
-
-      schema: {
-        type: "object",
-
-        properties: {
-          status: {
-            type: "string",
+            amount:
+              4.5,
           },
-
-          payment: {
-            type: "string",
-          },
-
-          network: {
-            type: "string",
-          },
-
-          currency: {
-            type: "string",
-          },
-
-          parsedData: {
-            type: "object",
-
-            properties: {
-              items: {
-                type: "array",
-
-                items: {
-                  type: "object",
-
-                  properties: {
-                    name: {
-                      type: "string",
-                    },
-
-                    amount: {
-                      type: "number",
-                    },
-                  },
-                },
-              },
-
-              subtotal: {
-                type: [
-                  "number",
-                  "null",
-                ],
-              },
-
-              tax: {
-                type: [
-                  "number",
-                  "null",
-                ],
-              },
-
-              total: {
-                type: [
-                  "number",
-                  "null",
-                ],
-              },
-
-              linesDetected: {
-                type: "integer",
-              },
-            },
-          },
-        },
-
-        required: [
-          "status",
-          "parsedData",
         ],
+
+        tax:
+          0.36,
+
+        total:
+          4.86,
       },
     },
+
+    outputSchema:
+      simpleObjectSchema,
   });
 
 // ============================================================================
-// X402 PAID ROUTE CONFIGURATION + BAZAAR
+// BAZAAR: NEWS
+// ============================================================================
+
+const newsDiscovery =
+  makeDiscovery({
+    input: {
+      topic:
+        "artificial intelligence",
+
+      limit:
+        10,
+
+      timespan:
+        "24h",
+    },
+
+    inputSchema: {
+      type:
+        "object",
+
+      properties: {
+        topic: {
+          type:
+            "string",
+        },
+
+        limit: {
+          type:
+            "integer",
+
+          minimum:
+            1,
+
+          maximum:
+            25,
+        },
+
+        timespan: {
+          type:
+            "string",
+        },
+      },
+
+      required: [
+        "topic",
+      ],
+    },
+
+    outputExample: {
+      status:
+        "success",
+
+      topic:
+        "artificial intelligence",
+
+      count:
+        10,
+
+      articles: [
+        {
+          title:
+            "Example article",
+
+          url:
+            "https://example.com/news",
+        },
+      ],
+    },
+
+    outputSchema:
+      simpleObjectSchema,
+  });
+
+// ============================================================================
+// BAZAAR: SEC
+// ============================================================================
+
+const secDiscovery =
+  makeDiscovery({
+    input: {
+      ticker:
+        "TSLA",
+    },
+
+    inputSchema: {
+      type:
+        "object",
+
+      properties: {
+        ticker: {
+          type:
+            "string",
+        },
+      },
+
+      required: [
+        "ticker",
+      ],
+    },
+
+    outputExample: {
+      status:
+        "success",
+
+      source:
+        "U.S. SEC EDGAR",
+
+      ticker:
+        "TSLA",
+
+      company:
+        "Tesla, Inc.",
+
+      recentFilings: [
+        {
+          form:
+            "10-Q",
+
+          filingDate:
+            "2026-07-24",
+        },
+      ],
+    },
+
+    outputSchema:
+      simpleObjectSchema,
+  });
+
+// ============================================================================
+// BAZAAR: WEBSITE RESEARCH
+// ============================================================================
+
+const researchDiscovery =
+  makeDiscovery({
+    bodyType:
+      "json",
+
+    input: {
+      url:
+        "https://example.com",
+    },
+
+    inputSchema: {
+      type:
+        "object",
+
+      properties: {
+        url: {
+          type:
+            "string",
+
+          format:
+            "uri",
+        },
+      },
+
+      required: [
+        "url",
+      ],
+
+      additionalProperties:
+        false,
+    },
+
+    outputExample: {
+      status:
+        "success",
+
+      url:
+        "https://example.com/",
+
+      domain:
+        "example.com",
+
+      profile: {
+        title:
+          "Example Domain",
+
+        wordCount:
+          350,
+      },
+
+      topExternalDomains: [],
+
+      textExcerpt:
+        "Example Domain...",
+    },
+
+    outputSchema:
+      simpleObjectSchema,
+  });
+
+// ============================================================================
+// PAID X402 ROUTES
 // ============================================================================
 
 const routesConfig = {
-  // --------------------------------------------------------------------------
-  // $0.02 - SPACE TRENDS
-  // --------------------------------------------------------------------------
-
-  "GET /api/trends": {
-    accepts: [
-      {
-        scheme: "exact",
-
-        network: NETWORK,
-
-        payTo: PAY_TO,
-
-        price: "$0.02",
-      },
-    ],
-
-    description:
-      "Get the five newest spaceflight news stories with titles, summaries, sources, article URLs, images and publication times. Use this endpoint when an agent needs current space industry news involving launches, NASA, SpaceX, Blue Origin, satellites or other spaceflight developments.",
-
-    mimeType:
-      "application/json",
-
-    extensions: {
-      ...trendsDiscovery,
-    },
-  },
-
-  // --------------------------------------------------------------------------
-  // $0.005 - WEB SCRAPER
-  // --------------------------------------------------------------------------
-
   "POST /api/scrape": {
     accepts: [
       {
-        scheme: "exact",
+        scheme:
+          "exact",
 
-        network: NETWORK,
+        network:
+          NETWORK,
 
-        payTo: PAY_TO,
+        payTo:
+          PAY_TO,
 
-        price: "$0.005",
+        price:
+          "$0.005",
       },
     ],
 
     description:
-      "Fetch a public HTTP or HTTPS webpage and return up to 5,000 characters of cleaned readable text. Use this when an agent needs the textual contents of a webpage for research, summarization, extraction or analysis.",
+      "Fetch a public webpage and return cleaned readable text for agent research, extraction, summarization, or analysis.",
 
     mimeType:
       "application/json",
@@ -778,25 +1091,137 @@ const routesConfig = {
     },
   },
 
-  // --------------------------------------------------------------------------
-  // $0.05 - RECEIPT PARSER
-  // --------------------------------------------------------------------------
-
-  "POST /api/parse-receipt": {
+  "GET /api/exchange-rate": {
     accepts: [
       {
-        scheme: "exact",
+        scheme:
+          "exact",
 
-        network: NETWORK,
+        network:
+          NETWORK,
 
-        payTo: PAY_TO,
+        payTo:
+          PAY_TO,
 
-        price: "$0.05",
+        price:
+          "$0.01",
       },
     ],
 
     description:
-      "Parse raw receipt text into structured line items, subtotal, sales tax and total. Use this when an agent already has receipt text and needs machine-readable purchase information. This endpoint does not perform image OCR.",
+      "Convert an amount between two currency codes using current reference exchange-rate data.",
+
+    mimeType:
+      "application/json",
+
+    extensions: {
+      ...exchangeDiscovery,
+    },
+  },
+
+  "GET /api/trends": {
+    accepts: [
+      {
+        scheme:
+          "exact",
+
+        network:
+          NETWORK,
+
+        payTo:
+          PAY_TO,
+
+        price:
+          "$0.02",
+      },
+    ],
+
+    description:
+      "Get the five newest spaceflight news stories with titles, summaries, sources, article URLs, images, and publication times.",
+
+    mimeType:
+      "application/json",
+
+    extensions: {
+      ...trendsDiscovery,
+    },
+  },
+
+  "GET /api/weather": {
+    accepts: [
+      {
+        scheme:
+          "exact",
+
+        network:
+          NETWORK,
+
+        payTo:
+          PAY_TO,
+
+        price:
+          "$0.02",
+      },
+    ],
+
+    description:
+      "Get a U.S. National Weather Service forecast for latitude and longitude coordinates.",
+
+    mimeType:
+      "application/json",
+
+    extensions: {
+      ...weatherDiscovery,
+    },
+  },
+
+  "POST /api/url-analyze": {
+    accepts: [
+      {
+        scheme:
+          "exact",
+
+        network:
+          NETWORK,
+
+        payTo:
+          PAY_TO,
+
+        price:
+          "$0.03",
+      },
+    ],
+
+    description:
+      "Analyze a public webpage and return title, description, headings, word count, links, emails, social links, and page metadata.",
+
+    mimeType:
+      "application/json",
+
+    extensions: {
+      ...urlAnalyzeDiscovery,
+    },
+  },
+
+  "POST /api/parse-receipt": {
+    accepts: [
+      {
+        scheme:
+          "exact",
+
+        network:
+          NETWORK,
+
+        payTo:
+          PAY_TO,
+
+        price:
+          "$0.05",
+      },
+    ],
+
+    description:
+      "Parse raw receipt text into structured line items, subtotal, tax, and total. This endpoint does not perform image OCR.",
 
     mimeType:
       "application/json",
@@ -805,10 +1230,94 @@ const routesConfig = {
       ...receiptDiscovery,
     },
   },
+
+  "GET /api/news-brief": {
+    accepts: [
+      {
+        scheme:
+          "exact",
+
+        network:
+          NETWORK,
+
+        payTo:
+          PAY_TO,
+
+        price:
+          "$0.05",
+      },
+    ],
+
+    description:
+      "Search recent global news for a topic and return structured headlines, source domains, URLs, dates, and source counts.",
+
+    mimeType:
+      "application/json",
+
+    extensions: {
+      ...newsDiscovery,
+    },
+  },
+
+  "GET /api/sec-company": {
+    accepts: [
+      {
+        scheme:
+          "exact",
+
+        network:
+          NETWORK,
+
+        payTo:
+          PAY_TO,
+
+        price:
+          "$0.05",
+      },
+    ],
+
+    description:
+      "Get U.S. SEC EDGAR company information and recent filings for a public-company ticker symbol.",
+
+    mimeType:
+      "application/json",
+
+    extensions: {
+      ...secDiscovery,
+    },
+  },
+
+  "POST /api/website-research": {
+    accepts: [
+      {
+        scheme:
+          "exact",
+
+        network:
+          NETWORK,
+
+        payTo:
+          PAY_TO,
+
+        price:
+          "$0.10",
+      },
+    ],
+
+    description:
+      "Create a detailed research snapshot of a public website including metadata, headings, text, social links, emails, and external-domain analysis.",
+
+    mimeType:
+      "application/json",
+
+    extensions: {
+      ...researchDiscovery,
+    },
+  },
 };
 
 // ============================================================================
-// ENABLE X402 PAYMENT PROTECTION
+// ENABLE X402
 // ============================================================================
 
 app.use(
@@ -819,7 +1328,7 @@ app.use(
 );
 
 // ============================================================================
-// SCRAPER SECURITY
+// PUBLIC-WEB SAFETY
 // ============================================================================
 
 function isPrivateIPv4(
@@ -833,12 +1342,10 @@ function isPrivateIPv4(
   if (
     parts.length !== 4 ||
     parts.some(
-      (number) =>
-        !Number.isInteger(
-          number
-        ) ||
-        number < 0 ||
-        number > 255
+      (n) =>
+        !Number.isInteger(n) ||
+        n < 0 ||
+        n > 255
     )
   ) {
     return true;
@@ -847,22 +1354,14 @@ function isPrivateIPv4(
   const [a, b] =
     parts;
 
-  // 0.0.0.0/8
-  if (a === 0) {
+  if (
+    a === 0 ||
+    a === 10 ||
+    a === 127
+  ) {
     return true;
   }
 
-  // 10.0.0.0/8
-  if (a === 10) {
-    return true;
-  }
-
-  // 127.0.0.0/8
-  if (a === 127) {
-    return true;
-  }
-
-  // 100.64.0.0/10
   if (
     a === 100 &&
     b >= 64 &&
@@ -871,7 +1370,6 @@ function isPrivateIPv4(
     return true;
   }
 
-  // 169.254.0.0/16
   if (
     a === 169 &&
     b === 254
@@ -879,7 +1377,6 @@ function isPrivateIPv4(
     return true;
   }
 
-  // 172.16.0.0/12
   if (
     a === 172 &&
     b >= 16 &&
@@ -888,7 +1385,6 @@ function isPrivateIPv4(
     return true;
   }
 
-  // 192.168.0.0/16
   if (
     a === 192 &&
     b === 168
@@ -896,8 +1392,9 @@ function isPrivateIPv4(
     return true;
   }
 
-  // Multicast/reserved
-  if (a >= 224) {
+  if (
+    a >= 224
+  ) {
     return true;
   }
 
@@ -917,7 +1414,6 @@ function isPrivateIPv6(
     return true;
   }
 
-  // Unique local IPv6
   if (
     value.startsWith(
       "fc"
@@ -929,7 +1425,6 @@ function isPrivateIPv6(
     return true;
   }
 
-  // Link-local IPv6
   if (
     /^fe[89ab]/.test(
       value
@@ -938,7 +1433,6 @@ function isPrivateIPv6(
     return true;
   }
 
-  // IPv4-mapped IPv6
   if (
     value.startsWith(
       "::ffff:"
@@ -988,7 +1482,9 @@ async function validatePublicUrl(
 
   try {
     parsed =
-      new URL(rawUrl);
+      new URL(
+        rawUrl
+      );
   } catch {
     throw new Error(
       "Invalid URL."
@@ -1032,7 +1528,11 @@ async function validatePublicUrl(
     );
   }
 
-  if (isIP(hostname)) {
+  if (
+    isIP(
+      hostname
+    )
+  ) {
     if (
       isPrivateAddress(
         hostname
@@ -1050,8 +1550,11 @@ async function validatePublicUrl(
     await lookup(
       hostname,
       {
-        all: true,
-        verbatim: true,
+        all:
+          true,
+
+        verbatim:
+          true,
       }
     );
 
@@ -1082,8 +1585,937 @@ async function validatePublicUrl(
 }
 
 // ============================================================================
+// HTML HELPERS
+// ============================================================================
+
+function decodeHtmlEntities(
+  text
+) {
+  return String(
+    text
+  )
+    .replace(
+      /&nbsp;/gi,
+      " "
+    )
+
+    .replace(
+      /&amp;/gi,
+      "&"
+    )
+
+    .replace(
+      /&quot;/gi,
+      '"'
+    )
+
+    .replace(
+      /&#39;/gi,
+      "'"
+    )
+
+    .replace(
+      /&lt;/gi,
+      "<"
+    )
+
+    .replace(
+      /&gt;/gi,
+      ">"
+    );
+}
+
+function htmlToText(
+  html
+) {
+  return decodeHtmlEntities(
+    String(
+      html
+    )
+      .replace(
+        /<script[\s\S]*?<\/script>/gi,
+        " "
+      )
+
+      .replace(
+        /<style[\s\S]*?<\/style>/gi,
+        " "
+      )
+
+      .replace(
+        /<noscript[\s\S]*?<\/noscript>/gi,
+        " "
+      )
+
+      .replace(
+        /<svg[\s\S]*?<\/svg>/gi,
+        " "
+      )
+
+      .replace(
+        /<[^>]+>/g,
+        " "
+      )
+  )
+    .replace(
+      /\s+/g,
+      " "
+    )
+    .trim();
+}
+
+function firstMatch(
+  html,
+  regex
+) {
+  const match =
+    String(
+      html
+    ).match(
+      regex
+    );
+
+  return match?.[1]
+    ? decodeHtmlEntities(
+        match[1].trim()
+      )
+    : null;
+}
+
+function unique(
+  values
+) {
+  return [
+    ...new Set(
+      values.filter(
+        Boolean
+      )
+    ),
+  ];
+}
+
+function absoluteUrl(
+  value,
+  baseUrl
+) {
+  try {
+    return new URL(
+      value,
+      baseUrl
+    ).toString();
+  } catch {
+    return null;
+  }
+}
+
+// ============================================================================
+// SAFE WEBPAGE FETCHER
+// ============================================================================
+
+async function fetchPublicPage(
+  rawUrl
+) {
+  const targetUrl =
+    await validatePublicUrl(
+      rawUrl
+    );
+
+  const response =
+    await axios.get(
+      targetUrl,
+
+      {
+        timeout:
+          12000,
+
+        maxRedirects:
+          0,
+
+        responseType:
+          "text",
+
+        maxContentLength:
+          2_000_000,
+
+        headers: {
+          "User-Agent":
+            `Mozilla/5.0 (compatible; x402-agent-data-api/${VERSION})`,
+
+          Accept:
+            "text/html,text/plain;q=0.9,*/*;q=0.5",
+        },
+
+        validateStatus:
+          (
+            status
+          ) =>
+            status >= 200 &&
+            status < 300,
+      }
+    );
+
+  const contentType =
+    String(
+      response.headers[
+        "content-type"
+      ] ||
+      ""
+    ).toLowerCase();
+
+  if (
+    !contentType.includes(
+      "text/html"
+    ) &&
+    !contentType.includes(
+      "text/plain"
+    ) &&
+    !contentType.includes(
+      "application/xhtml"
+    )
+  ) {
+    const error =
+      new Error(
+        "The requested URL did not return readable webpage text."
+      );
+
+    error.statusCode =
+      415;
+
+    throw error;
+  }
+
+  return {
+    targetUrl,
+
+    html:
+      String(
+        response.data
+      ),
+
+    contentType,
+  };
+}
+
+// ============================================================================
+// WEBSITE ANALYSIS
+// ============================================================================
+
+function analyzeHtml(
+  html,
+  baseUrl
+) {
+  const text =
+    htmlToText(
+      html
+    );
+
+  const title =
+    firstMatch(
+      html,
+      /<title[^>]*>([\s\S]*?)<\/title>/i
+    );
+
+  const description =
+    firstMatch(
+      html,
+      /<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["'][^>]*>/i
+    ) ||
+
+    firstMatch(
+      html,
+      /<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["'][^>]*>/i
+    );
+
+  const canonicalRaw =
+    firstMatch(
+      html,
+      /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["'][^>]*>/i
+    ) ||
+
+    firstMatch(
+      html,
+      /<link[^>]+href=["']([^"']+)["'][^>]+rel=["']canonical["'][^>]*>/i
+    );
+
+  const language =
+    firstMatch(
+      html,
+      /<html[^>]+lang=["']([^"']+)["'][^>]*>/i
+    );
+
+  const headingMatches = [
+    ...String(
+      html
+    ).matchAll(
+      /<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi
+    ),
+  ];
+
+  const headings =
+    unique(
+      headingMatches
+        .map(
+          (m) =>
+            htmlToText(
+              m[1]
+            )
+        )
+        .filter(
+          Boolean
+        )
+    ).slice(
+      0,
+      50
+    );
+
+  const hrefMatches = [
+    ...String(
+      html
+    ).matchAll(
+      /<a[^>]+href=["']([^"']+)["'][^>]*>/gi
+    ),
+  ];
+
+  const links =
+    unique(
+      hrefMatches
+        .map(
+          (m) =>
+            absoluteUrl(
+              m[1],
+              baseUrl
+            )
+        )
+        .filter(
+          Boolean
+        )
+    ).slice(
+      0,
+      500
+    );
+
+  const baseHost =
+    new URL(
+      baseUrl
+    )
+      .hostname
+      .replace(
+        /^www\./i,
+        ""
+      );
+
+  const externalLinks =
+    links.filter(
+      (link) => {
+        try {
+          return (
+            new URL(
+              link
+            )
+              .hostname
+              .replace(
+                /^www\./i,
+                ""
+              ) !==
+            baseHost
+          );
+        } catch {
+          return false;
+        }
+      }
+    );
+
+  const emails =
+    unique([
+      ...[
+        ...String(
+          html
+        ).matchAll(
+          /mailto:([^?"'<>\s]+)/gi
+        ),
+      ].map(
+        (m) =>
+          m[1]
+      ),
+
+      ...[
+        ...text.matchAll(
+          /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi
+        ),
+      ].map(
+        (m) =>
+          m[0]
+      ),
+    ]).slice(
+      0,
+      25
+    );
+
+  const socialDomains = {
+    linkedin:
+      "linkedin.com",
+
+    x:
+      "x.com",
+
+    twitter:
+      "twitter.com",
+
+    facebook:
+      "facebook.com",
+
+    instagram:
+      "instagram.com",
+
+    youtube:
+      "youtube.com",
+
+    github:
+      "github.com",
+
+    tiktok:
+      "tiktok.com",
+  };
+
+  const socialLinks = {};
+
+  for (
+    const [
+      name,
+      domain,
+    ] of
+      Object.entries(
+        socialDomains
+      )
+  ) {
+    const found =
+      links.find(
+        (link) => {
+          try {
+            return (
+              new URL(
+                link
+              )
+                .hostname
+                .toLowerCase()
+                .includes(
+                  domain
+                )
+            );
+          } catch {
+            return false;
+          }
+        }
+      );
+
+    if (found) {
+      socialLinks[
+        name
+      ] =
+        found;
+    }
+  }
+
+  return {
+    title,
+
+    description,
+
+    canonical:
+      canonicalRaw
+        ? absoluteUrl(
+            canonicalRaw,
+            baseUrl
+          )
+        : null,
+
+    language,
+
+    wordCount:
+      text
+        ? text
+            .split(
+              /\s+/
+            )
+            .filter(
+              Boolean
+            )
+            .length
+        : 0,
+
+    headings,
+
+    linkCount:
+      links.length,
+
+    externalLinkCount:
+      externalLinks.length,
+
+    emails,
+
+    socialLinks,
+
+    links,
+
+    text,
+  };
+}
+
+function buildExternalDomainCounts(
+  links,
+  baseUrl
+) {
+  const baseHost =
+    new URL(
+      baseUrl
+    )
+      .hostname
+      .replace(
+        /^www\./i,
+        ""
+      );
+
+  const counts =
+    new Map();
+
+  for (
+    const link of
+      links
+  ) {
+    try {
+      const host =
+        new URL(
+          link
+        )
+          .hostname
+          .replace(
+            /^www\./i,
+            ""
+          );
+
+      if (
+        host &&
+        host !==
+          baseHost
+      ) {
+        counts.set(
+          host,
+
+          (
+            counts.get(
+              host
+            ) ||
+            0
+          ) +
+            1
+        );
+      }
+    } catch {
+      // Ignore bad links.
+    }
+  }
+
+  return [
+    ...counts.entries(),
+  ]
+    .map(
+      ([
+        domain,
+        linksCount,
+      ]) => ({
+        domain,
+
+        links:
+          linksCount,
+      })
+    )
+
+    .sort(
+      (a, b) =>
+        b.links -
+        a.links
+    )
+
+    .slice(
+      0,
+      15
+    );
+}
+
+// ============================================================================
+// WEBPAGE ERROR HANDLER
+// ============================================================================
+
+function handlePublicPageError(
+  error,
+  res
+) {
+  console.error(
+    "Public page error:",
+
+    error.response?.data ||
+      error.message
+  );
+
+  if (
+    error.message ===
+      "Invalid URL." ||
+
+    error.message.includes(
+      "not allowed"
+    ) ||
+
+    error.message.includes(
+      "Only HTTP"
+    ) ||
+
+    error.message.includes(
+      "resolve hostname"
+    )
+  ) {
+    return res
+      .status(400)
+      .json({
+        error:
+          error.message,
+      });
+  }
+
+  if (
+    error.statusCode ===
+    415
+  ) {
+    return res
+      .status(415)
+      .json({
+        error:
+          error.message,
+      });
+  }
+
+  if (
+    error.response
+  ) {
+    return res
+      .status(502)
+      .json({
+        error:
+          "The remote website rejected or failed the request.",
+
+        remoteStatus:
+          error.response
+            .status,
+      });
+  }
+
+  return res
+    .status(500)
+    .json({
+      error:
+        "Failed to process the webpage.",
+    });
+}
+
+// ============================================================================
 // TOOL #1
+// WEB SCRAPER
+// $0.005
+// ============================================================================
+
+app.post(
+  "/api/scrape",
+
+  async (
+    req,
+    res
+  ) => {
+    const { url } =
+      req.body ||
+      {};
+
+    if (
+      !url ||
+      typeof url !==
+        "string"
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Please provide a URL.",
+
+          example: {
+            url:
+              "https://example.com",
+          },
+        });
+    }
+
+    try {
+      const {
+        targetUrl,
+        html,
+      } =
+        await fetchPublicPage(
+          url
+        );
+
+      const cleanText =
+        htmlToText(
+          html
+        );
+
+      const MAX_LENGTH =
+        5000;
+
+      return res.json({
+        status:
+          "success",
+
+        payment:
+          "verified",
+
+        network:
+          NETWORK,
+
+        currency:
+          "USDC",
+
+        urlRequested:
+          targetUrl,
+
+        charactersAvailable:
+          cleanText.length,
+
+        truncated:
+          cleanText.length >
+          MAX_LENGTH,
+
+        extractedText:
+          cleanText.slice(
+            0,
+            MAX_LENGTH
+          ),
+      });
+    } catch (
+      error
+    ) {
+      return handlePublicPageError(
+        error,
+        res
+      );
+    }
+  }
+);
+
+// ============================================================================
+// TOOL #2
+// EXCHANGE RATE
+// $0.01
+// ============================================================================
+
+app.get(
+  "/api/exchange-rate",
+
+  async (
+    req,
+    res
+  ) => {
+    const from =
+      String(
+        req.query.from ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+    const to =
+      String(
+        req.query.to ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+    const amount =
+      req.query.amount ===
+      undefined
+        ? 1
+        : Number(
+            req.query.amount
+          );
+
+    if (
+      !/^[A-Z]{3}$/.test(
+        from
+      ) ||
+
+      !/^[A-Z]{3}$/.test(
+        to
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "from and to must be three-letter currency codes, such as USD and EUR.",
+        });
+    }
+
+    if (
+      !Number.isFinite(
+        amount
+      ) ||
+
+      amount <= 0 ||
+
+      amount >
+        1_000_000_000
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "amount must be a positive number no greater than 1,000,000,000.",
+        });
+    }
+
+    if (
+      from ===
+      to
+    ) {
+      return res.json({
+        status:
+          "success",
+
+        payment:
+          "verified",
+
+        source:
+          "Identity conversion",
+
+        date:
+          new Date()
+            .toISOString()
+            .slice(
+              0,
+              10
+            ),
+
+        from,
+
+        to,
+
+        amount,
+
+        rate:
+          1,
+
+        convertedAmount:
+          amount,
+      });
+    }
+
+    try {
+      const response =
+        await axios.get(
+          "https://api.frankfurter.app/latest",
+
+          {
+            timeout:
+              12000,
+
+            params: {
+              from,
+
+              to,
+
+              amount,
+            },
+
+            headers: {
+              Accept:
+                "application/json",
+
+              "User-Agent":
+                `x402-agent-data-api/${VERSION}`,
+            },
+          }
+        );
+
+      const convertedAmount =
+        Number(
+          response.data
+            ?.rates?.[
+              to
+            ]
+        );
+
+      if (
+        !Number.isFinite(
+          convertedAmount
+        )
+      ) {
+        return res
+          .status(502)
+          .json({
+            error:
+              "Exchange-rate provider did not return the requested conversion.",
+          });
+      }
+
+      return res.json({
+        status:
+          "success",
+
+        payment:
+          "verified",
+
+        source:
+          "Frankfurter",
+
+        date:
+          response.data
+            ?.date ||
+          null,
+
+        from,
+
+        to,
+
+        amount,
+
+        rate:
+          convertedAmount /
+          amount,
+
+        convertedAmount,
+      });
+    } catch (
+      error
+    ) {
+      console.error(
+        "Exchange-rate error:",
+
+        error.response
+          ?.data ||
+          error.message
+      );
+
+      return res
+        .status(502)
+        .json({
+          error:
+            "Failed to retrieve exchange-rate data.",
+        });
+    }
+  }
+);
+
+// ============================================================================
+// TOOL #3
 // SPACE TRENDS
+// $0.02
 // ============================================================================
 
 app.get(
@@ -1115,7 +2547,7 @@ app.get(
                 "application/json",
 
               "User-Agent":
-                "x402-trends-server/2.1.1",
+                `x402-agent-data-api/${VERSION}`,
             },
           }
         );
@@ -1129,7 +2561,7 @@ app.get(
               .results
           : [];
 
-      const trends =
+      const data =
         articles
           .slice(
             0,
@@ -1182,15 +2614,16 @@ app.get(
           "Spaceflight News API",
 
         count:
-          trends.length,
+          data.length,
 
         retrievedAt:
           new Date().toISOString(),
 
-        data:
-          trends,
+        data,
       });
-    } catch (error) {
+    } catch (
+      error
+    ) {
       console.error(
         "Trends error:",
 
@@ -1210,169 +2643,160 @@ app.get(
 );
 
 // ============================================================================
-// TOOL #2
-// WEB SCRAPER
+// TOOL #4
+// WEATHER
+// $0.02
 // ============================================================================
 
-app.post(
-  "/api/scrape",
+app.get(
+  "/api/weather",
 
   async (
     req,
     res
   ) => {
+    const lat =
+      Number(
+        req.query.lat
+      );
+
+    const lon =
+      Number(
+        req.query.lon
+      );
+
+    if (
+      !Number.isFinite(
+        lat
+      ) ||
+
+      lat < -90 ||
+
+      lat > 90 ||
+
+      !Number.isFinite(
+        lon
+      ) ||
+
+      lon < -180 ||
+
+      lon > 180
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Provide valid lat and lon coordinates.",
+        });
+    }
+
     try {
-      const { url } =
-        req.body || {};
-
-      if (
-        !url ||
-        typeof url !==
-          "string"
-      ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              "Please provide a URL.",
-
-            example: {
-              url:
-                "https://example.com",
-            },
-          });
-      }
-
-      const targetUrl =
-        await validatePublicUrl(
-          url
-        );
-
-      const response =
+      const pointsResponse =
         await axios.get(
-          targetUrl,
+          `https://api.weather.gov/points/${lat},${lon}`,
 
           {
             timeout:
               12000,
 
-            // Disable redirects to prevent a public URL
-            // from redirecting to a private/internal address.
-            maxRedirects:
-              0,
-
-            responseType:
-              "text",
-
-            maxContentLength:
-              2_000_000,
-
             headers: {
-              "User-Agent":
-                "Mozilla/5.0 (compatible; x402-trends-server/2.1.1)",
-
               Accept:
-                "text/html,text/plain;q=0.9,*/*;q=0.5",
-            },
+                "application/geo+json",
 
-            validateStatus:
-              (
-                status
-              ) =>
-                status >=
-                  200 &&
-                status <
-                  300,
+              "User-Agent":
+                APP_USER_AGENT,
+            },
           }
         );
 
-      const contentType =
-        String(
-          response.headers[
-            "content-type"
-          ] || ""
-        ).toLowerCase();
+      const properties =
+        pointsResponse.data
+          ?.properties;
+
+      const forecastUrl =
+        properties
+          ?.forecast;
 
       if (
-        !contentType.includes(
-          "text/html"
-        ) &&
-        !contentType.includes(
-          "text/plain"
-        ) &&
-        !contentType.includes(
-          "application/xhtml"
-        )
+        !forecastUrl
       ) {
         return res
-          .status(415)
+          .status(404)
           .json({
             error:
-              "The requested URL did not return readable webpage text.",
-
-            contentType,
+              "National Weather Service forecast is unavailable for these coordinates.",
           });
       }
 
-      const cleanText =
-        String(
-          response.data
+      const forecastResponse =
+        await axios.get(
+          forecastUrl,
+
+          {
+            timeout:
+              12000,
+
+            headers: {
+              Accept:
+                "application/geo+json",
+
+              "User-Agent":
+                APP_USER_AGENT,
+            },
+          }
+        );
+
+      const periods =
+        Array.isArray(
+          forecastResponse
+            .data
+            ?.properties
+            ?.periods
         )
+          ? forecastResponse
+              .data
+              .properties
+              .periods
+              .slice(
+                0,
+                10
+              )
+              .map(
+                (
+                  period
+                ) => ({
+                  name:
+                    period.name,
 
-          .replace(
-            /<script[\s\S]*?<\/script>/gi,
-            " "
-          )
+                  startTime:
+                    period.startTime,
 
-          .replace(
-            /<style[\s\S]*?<\/style>/gi,
-            " "
-          )
+                  endTime:
+                    period.endTime,
 
-          .replace(
-            /<noscript[\s\S]*?<\/noscript>/gi,
-            " "
-          )
+                  isDaytime:
+                    period.isDaytime,
 
-          .replace(
-            /<svg[\s\S]*?<\/svg>/gi,
-            " "
-          )
+                  temperature:
+                    period.temperature,
 
-          .replace(
-            /<[^>]+>/g,
-            " "
-          )
+                  temperatureUnit:
+                    period.temperatureUnit,
 
-          .replace(
-            /&nbsp;/gi,
-            " "
-          )
+                  windSpeed:
+                    period.windSpeed,
 
-          .replace(
-            /&amp;/gi,
-            "&"
-          )
+                  windDirection:
+                    period.windDirection,
 
-          .replace(
-            /&quot;/gi,
-            '"'
-          )
+                  shortForecast:
+                    period.shortForecast,
 
-          .replace(
-            /&#39;/gi,
-            "'"
-          )
-
-          .replace(
-            /\s+/g,
-            " "
-          )
-
-          .trim();
-
-      const MAX_LENGTH =
-        5000;
+                  detailedForecast:
+                    period.detailedForecast,
+                })
+              )
+          : [];
 
       return res.json({
         status:
@@ -1381,90 +2805,188 @@ app.post(
         payment:
           "verified",
 
-        network:
-          NETWORK,
+        source:
+          "NOAA National Weather Service",
 
-        currency:
-          "USDC",
+        coordinates: {
+          lat,
 
-        urlRequested:
-          targetUrl,
+          lon,
+        },
 
-        charactersAvailable:
-          cleanText.length,
+        location: {
+          city:
+            properties
+              ?.relativeLocation
+              ?.properties
+              ?.city ||
+            null,
 
-        truncated:
-          cleanText.length >
-          MAX_LENGTH,
+          state:
+            properties
+              ?.relativeLocation
+              ?.properties
+              ?.state ||
+            null,
+        },
 
-        extractedText:
-          cleanText.slice(
-            0,
-            MAX_LENGTH
-          ),
+        periods,
+
+        retrievedAt:
+          new Date().toISOString(),
       });
-    } catch (error) {
+    } catch (
+      error
+    ) {
       console.error(
-        "Scrape error:",
+        "Weather error:",
 
-        error.message
+        error.response
+          ?.data ||
+          error.message
       );
 
       if (
-        error.message ===
-          "Invalid URL." ||
-        error.message.includes(
-          "not allowed"
-        ) ||
-        error.message.includes(
-          "Only HTTP"
-        ) ||
-        error.message.includes(
-          "resolve hostname"
-        )
-      ) {
-        return res
-          .status(400)
-          .json({
-            error:
-              error.message,
-          });
-      }
-
-      if (
         error.response
+          ?.status ===
+        404
       ) {
         return res
-          .status(502)
+          .status(404)
           .json({
             error:
-              "The remote website rejected or failed the request.",
-
-            remoteStatus:
-              error.response
-                .status,
+              "National Weather Service data is unavailable for these coordinates. This endpoint is intended for U.S. NWS coverage.",
           });
       }
 
       return res
-        .status(500)
+        .status(502)
         .json({
           error:
-            "Failed to scrape the webpage.",
+            "Failed to retrieve weather data.",
         });
     }
   }
 );
 
 // ============================================================================
-// RECEIPT PARSER FUNCTIONS
+// TOOL #5
+// URL ANALYZER
+// $0.03
+// ============================================================================
+
+app.post(
+  "/api/url-analyze",
+
+  async (
+    req,
+    res
+  ) => {
+    const { url } =
+      req.body ||
+      {};
+
+    if (
+      !url ||
+      typeof url !==
+        "string"
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Please provide a URL.",
+
+          example: {
+            url:
+              "https://example.com",
+          },
+        });
+    }
+
+    try {
+      const {
+        targetUrl,
+        html,
+        contentType,
+      } =
+        await fetchPublicPage(
+          url
+        );
+
+      const analysis =
+        analyzeHtml(
+          html,
+          targetUrl
+        );
+
+      return res.json({
+        status:
+          "success",
+
+        payment:
+          "verified",
+
+        url:
+          targetUrl,
+
+        contentType,
+
+        title:
+          analysis.title,
+
+        description:
+          analysis.description,
+
+        canonical:
+          analysis.canonical,
+
+        language:
+          analysis.language,
+
+        wordCount:
+          analysis.wordCount,
+
+        headings:
+          analysis.headings,
+
+        linkCount:
+          analysis.linkCount,
+
+        externalLinkCount:
+          analysis.externalLinkCount,
+
+        emails:
+          analysis.emails,
+
+        socialLinks:
+          analysis.socialLinks,
+
+        retrievedAt:
+          new Date().toISOString(),
+      });
+    } catch (
+      error
+    ) {
+      return handlePublicPageError(
+        error,
+        res
+      );
+    }
+  }
+);
+
+// ============================================================================
+// RECEIPT HELPERS
 // ============================================================================
 
 function extractMoney(
   line
 ) {
   const matches = [
-    ...line.matchAll(
+    ...String(
+      line
+    ).matchAll(
       /(?:\$|USD\s*)?(-?\d{1,7}(?:,\d{3})*(?:\.\d{2}))/gi
     ),
   ];
@@ -1478,14 +3000,16 @@ function extractMoney(
   const value =
     matches[
       matches.length -
-        1
+      1
     ][1].replace(
       /,/g,
       ""
     );
 
   const number =
-    Number(value);
+    Number(
+      value
+    );
 
   return Number.isFinite(
     number
@@ -1494,7 +3018,7 @@ function extractMoney(
     : null;
 }
 
-function findValue(
+function findReceiptValue(
   lines,
   patterns
 ) {
@@ -1529,47 +3053,61 @@ function findValue(
   return null;
 }
 
-function parseReceipt(
+function parseReceiptText(
   text
 ) {
   const lines =
-    text
-      .split(/\r?\n/)
+    String(
+      text
+    )
+      .split(
+        /\r?\n/
+      )
+
       .map(
         (
           line
         ) =>
           line.trim()
       )
+
       .filter(
         Boolean
       );
 
   const subtotal =
-    findValue(
+    findReceiptValue(
       lines,
+
       [
         /\bsubtotal\b/i,
+
         /\bsub total\b/i,
       ]
     );
 
   const tax =
-    findValue(
+    findReceiptValue(
       lines,
+
       [
         /\btax\b/i,
+
         /\bsales tax\b/i,
       ]
     );
 
   const total =
-    findValue(
+    findReceiptValue(
       lines,
+
       [
         /\bgrand total\b/i,
+
         /\bamount due\b/i,
+
         /\bbalance due\b/i,
+
         /^total\b/i,
       ]
     );
@@ -1577,8 +3115,7 @@ function parseReceipt(
   const ignored =
     /\b(subtotal|sub total|tax|grand total|amount due|balance due|total|change|cash|visa|mastercard|amex|credit|debit)\b/i;
 
-  const items =
-    [];
+  const items = [];
 
   for (
     const line of
@@ -1610,11 +3147,15 @@ function parseReceipt(
           /(?:\$|USD\s*)?-?\d{1,7}(?:,\d{3})*(?:\.\d{2})\s*$/i,
           ""
         )
+
         .trim();
 
-    if (name) {
+    if (
+      name
+    ) {
       items.push({
         name,
+
         amount,
       });
     }
@@ -1622,8 +3163,11 @@ function parseReceipt(
 
   return {
     items,
+
     subtotal,
+
     tax,
+
     total,
 
     linesDetected:
@@ -1632,8 +3176,9 @@ function parseReceipt(
 }
 
 // ============================================================================
-// TOOL #3
+// TOOL #6
 // RECEIPT PARSER
+// $0.05
 // ============================================================================
 
 app.post(
@@ -1645,7 +3190,8 @@ app.post(
   ) => {
     try {
       const { text } =
-        req.body || {};
+        req.body ||
+        {};
 
       if (
         !text ||
@@ -1691,11 +3237,13 @@ app.post(
           "USDC",
 
         parsedData:
-          parseReceipt(
+          parseReceiptText(
             text
           ),
       });
-    } catch (error) {
+    } catch (
+      error
+    ) {
       console.error(
         "Receipt parser error:",
 
@@ -1708,6 +3256,824 @@ app.post(
           error:
             "Failed to parse receipt.",
         });
+    }
+  }
+);
+
+// ============================================================================
+// TOOL #7
+// NEWS BRIEF
+// $0.05
+// ============================================================================
+
+app.get(
+  "/api/news-brief",
+
+  async (
+    req,
+    res
+  ) => {
+    const topic =
+      String(
+        req.query.topic ||
+        ""
+      ).trim();
+
+    const limitRaw =
+      req.query.limit ===
+      undefined
+        ? 10
+        : Number(
+            req.query.limit
+          );
+
+    const limit =
+      Math.min(
+        Math.max(
+          Math.floor(
+            limitRaw
+          ),
+          1
+        ),
+        25
+      );
+
+    const timespan =
+      String(
+        req.query.timespan ||
+        "24h"
+      )
+        .trim()
+        .toLowerCase();
+
+    if (
+      !topic ||
+      topic.length < 2 ||
+      topic.length > 200
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "topic must contain between 2 and 200 characters.",
+        });
+    }
+
+    if (
+      !Number.isFinite(
+        limitRaw
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "limit must be a number between 1 and 25.",
+        });
+    }
+
+    if (
+      !/^\d+(min|h|day|days|week|weeks|month|months)$/.test(
+        timespan
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "timespan must look like 30min, 24h, 3days, 1week, or 1month.",
+        });
+    }
+
+    try {
+      const response =
+        await axios.get(
+          "https://api.gdeltproject.org/api/v2/doc/doc",
+
+          {
+            timeout:
+              15000,
+
+            params: {
+              query:
+                topic,
+
+              mode:
+                "artlist",
+
+              format:
+                "json",
+
+              maxrecords:
+                limit,
+
+              sort:
+                "datedesc",
+
+              timespan,
+            },
+
+            headers: {
+              Accept:
+                "application/json",
+
+              "User-Agent":
+                `x402-agent-data-api/${VERSION}`,
+            },
+          }
+        );
+
+      const articles =
+        Array.isArray(
+          response.data
+            ?.articles
+        )
+          ? response.data
+              .articles
+          : [];
+
+      const data =
+        articles
+          .slice(
+            0,
+            limit
+          )
+
+          .map(
+            (
+              article
+            ) => ({
+              title:
+                article.title ||
+                null,
+
+              url:
+                article.url ||
+                null,
+
+              mobileUrl:
+                article.url_mobile ||
+                null,
+
+              domain:
+                article.domain ||
+                null,
+
+              language:
+                article.language ||
+                null,
+
+              sourceCountry:
+                article.sourcecountry ||
+                null,
+
+              seenDate:
+                article.seendate ||
+                null,
+
+              socialImage:
+                article.socialimage ||
+                null,
+            })
+          );
+
+      const sources =
+        unique(
+          data.map(
+            (
+              item
+            ) =>
+              item.domain
+          )
+        );
+
+      return res.json({
+        status:
+          "success",
+
+        payment:
+          "verified",
+
+        topic,
+
+        timespan,
+
+        source:
+          "GDELT DOC 2.0",
+
+        count:
+          data.length,
+
+        sourceCount:
+          sources.length,
+
+        sources,
+
+        retrievedAt:
+          new Date().toISOString(),
+
+        articles:
+          data,
+      });
+    } catch (
+      error
+    ) {
+      console.error(
+        "News brief error:",
+
+        error.response
+          ?.data ||
+          error.message
+      );
+
+      return res
+        .status(502)
+        .json({
+          error:
+            "Failed to retrieve topic news from GDELT.",
+        });
+    }
+  }
+);
+
+// ============================================================================
+// SEC CACHE
+// ============================================================================
+
+let tickerCache = {
+  expiresAt:
+    0,
+
+  rows:
+    [],
+};
+
+const companyCache =
+  new Map();
+
+function secHeaders() {
+  return {
+    Accept:
+      "application/json",
+
+    "Accept-Encoding":
+      "gzip, deflate",
+
+    "User-Agent":
+      APP_USER_AGENT,
+  };
+}
+
+async function getSecTickerRows() {
+  const now =
+    Date.now();
+
+  if (
+    tickerCache
+      .rows
+      .length &&
+
+    tickerCache
+      .expiresAt >
+      now
+  ) {
+    return tickerCache
+      .rows;
+  }
+
+  const response =
+    await axios.get(
+      "https://www.sec.gov/files/company_tickers.json",
+
+      {
+        timeout:
+          15000,
+
+        headers:
+          secHeaders(),
+      }
+    );
+
+  const rows =
+    Object.values(
+      response.data ||
+      {}
+    ).filter(
+      (
+        row
+      ) =>
+        row &&
+        row.ticker &&
+        row.cik_str
+    );
+
+  tickerCache = {
+    rows,
+
+    expiresAt:
+      now +
+      60 *
+      60 *
+      1000,
+  };
+
+  return rows;
+}
+
+function buildSecFilingUrl(
+  cik,
+  accessionNumber,
+  primaryDocument
+) {
+  if (
+    !accessionNumber ||
+    !primaryDocument
+  ) {
+    return null;
+  }
+
+  const cikNoLeadingZeros =
+    String(
+      Number(
+        cik
+      )
+    );
+
+  const accessionNoDashes =
+    String(
+      accessionNumber
+    ).replace(
+      /-/g,
+      ""
+    );
+
+  return (
+    `https://www.sec.gov/Archives/edgar/data/` +
+    `${cikNoLeadingZeros}/` +
+    `${accessionNoDashes}/` +
+    `${primaryDocument}`
+  );
+}
+
+function mapRecentSecFilings(
+  cik,
+  recent,
+  limit = 12
+) {
+  const result = [];
+
+  const forms =
+    Array.isArray(
+      recent?.form
+    )
+      ? recent.form
+      : [];
+
+  for (
+    let i = 0;
+
+    i <
+      forms.length &&
+    result.length <
+      limit;
+
+    i += 1
+  ) {
+    const accessionNumber =
+      recent
+        .accessionNumber?.[
+          i
+        ] ||
+      null;
+
+    const primaryDocument =
+      recent
+        .primaryDocument?.[
+          i
+        ] ||
+      null;
+
+    result.push({
+      form:
+        forms[i] ||
+        null,
+
+      filingDate:
+        recent
+          .filingDate?.[
+            i
+          ] ||
+        null,
+
+      reportDate:
+        recent
+          .reportDate?.[
+            i
+          ] ||
+        null,
+
+      acceptanceDateTime:
+        recent
+          .acceptanceDateTime?.[
+            i
+          ] ||
+        null,
+
+      accessionNumber,
+
+      primaryDocument,
+
+      description:
+        recent
+          .primaryDocDescription?.[
+            i
+          ] ||
+        null,
+
+      url:
+        buildSecFilingUrl(
+          cik,
+          accessionNumber,
+          primaryDocument
+        ),
+    });
+  }
+
+  return result;
+}
+
+// ============================================================================
+// TOOL #8
+// SEC COMPANY INTELLIGENCE
+// $0.05
+// ============================================================================
+
+app.get(
+  "/api/sec-company",
+
+  async (
+    req,
+    res
+  ) => {
+    const ticker =
+      String(
+        req.query.ticker ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+    if (
+      !/^[A-Z0-9.-]{1,10}$/.test(
+        ticker
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Please provide a valid ticker, such as TSLA or AAPL.",
+        });
+    }
+
+    try {
+      const cached =
+        companyCache.get(
+          ticker
+        );
+
+      if (
+        cached &&
+        cached.expiresAt >
+          Date.now()
+      ) {
+        return res.json(
+          cached.value
+        );
+      }
+
+      const tickerRows =
+        await getSecTickerRows();
+
+      const match =
+        tickerRows.find(
+          (
+            row
+          ) =>
+            String(
+              row.ticker
+            ).toUpperCase() ===
+            ticker
+        );
+
+      if (
+        !match
+      ) {
+        return res
+          .status(404)
+          .json({
+            error:
+              `Ticker ${ticker} was not found in the SEC ticker list.`,
+          });
+      }
+
+      const cik =
+        String(
+          match.cik_str
+        ).padStart(
+          10,
+          "0"
+        );
+
+      const response =
+        await axios.get(
+          `https://data.sec.gov/submissions/CIK${cik}.json`,
+
+          {
+            timeout:
+              15000,
+
+            headers:
+              secHeaders(),
+          }
+        );
+
+      const company =
+        response.data ||
+        {};
+
+      const recentFilings =
+        mapRecentSecFilings(
+          cik,
+
+          company.filings
+            ?.recent,
+
+          12
+        );
+
+      const value = {
+        status:
+          "success",
+
+        payment:
+          "verified",
+
+        source:
+          "U.S. SEC EDGAR",
+
+        ticker,
+
+        company:
+          company.name ||
+          match.title,
+
+        cik,
+
+        sic:
+          company.sic ||
+          null,
+
+        sicDescription:
+          company.sicDescription ||
+          null,
+
+        stateOfIncorporation:
+          company.stateOfIncorporation ||
+          null,
+
+        fiscalYearEnd:
+          company.fiscalYearEnd ||
+          null,
+
+        exchanges:
+          company.exchanges ||
+          [],
+
+        tickers:
+          company.tickers ||
+          [
+            ticker,
+          ],
+
+        website:
+          company.website ||
+          null,
+
+        investorWebsite:
+          company.investorWebsite ||
+          null,
+
+        recentFilings,
+
+        keyFilings:
+          recentFilings.filter(
+            (
+              filing
+            ) =>
+              [
+                "10-K",
+                "10-Q",
+                "8-K",
+                "20-F",
+                "6-K",
+              ].includes(
+                filing.form
+              )
+          ),
+
+        retrievedAt:
+          new Date().toISOString(),
+      };
+
+      companyCache.set(
+        ticker,
+
+        {
+          value,
+
+          expiresAt:
+            Date.now() +
+            60 *
+            1000,
+        }
+      );
+
+      return res.json(
+        value
+      );
+    } catch (
+      error
+    ) {
+      console.error(
+        "SEC company error:",
+
+        error.response
+          ?.data ||
+          error.message
+      );
+
+      if (
+        error.response
+          ?.status ===
+        404
+      ) {
+        return res
+          .status(404)
+          .json({
+            error:
+              `SEC data was not found for ticker ${ticker}.`,
+          });
+      }
+
+      return res
+        .status(502)
+        .json({
+          error:
+            "Failed to retrieve SEC company data.",
+        });
+    }
+  }
+);
+
+// ============================================================================
+// TOOL #9
+// WEBSITE RESEARCH
+// $0.10
+// ============================================================================
+
+app.post(
+  "/api/website-research",
+
+  async (
+    req,
+    res
+  ) => {
+    const { url } =
+      req.body ||
+      {};
+
+    if (
+      !url ||
+      typeof url !==
+        "string"
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "Please provide a URL.",
+
+          example: {
+            url:
+              "https://example.com",
+          },
+        });
+    }
+
+    try {
+      const {
+        targetUrl,
+        html,
+        contentType,
+      } =
+        await fetchPublicPage(
+          url
+        );
+
+      const analysis =
+        analyzeHtml(
+          html,
+          targetUrl
+        );
+
+      return res.json({
+        status:
+          "success",
+
+        payment:
+          "verified",
+
+        network:
+          NETWORK,
+
+        currency:
+          "USDC",
+
+        url:
+          targetUrl,
+
+        domain:
+          new URL(
+            targetUrl
+          ).hostname,
+
+        contentType,
+
+        profile: {
+          title:
+            analysis.title,
+
+          description:
+            analysis.description,
+
+          canonical:
+            analysis.canonical,
+
+          language:
+            analysis.language,
+
+          wordCount:
+            analysis.wordCount,
+
+          headings:
+            analysis.headings.slice(
+              0,
+              20
+            ),
+
+          emails:
+            analysis.emails,
+
+          socialLinks:
+            analysis.socialLinks,
+
+          linkCount:
+            analysis.linkCount,
+
+          externalLinkCount:
+            analysis.externalLinkCount,
+        },
+
+        topExternalDomains:
+          buildExternalDomainCounts(
+            analysis.links,
+            targetUrl
+          ),
+
+        textExcerpt:
+          analysis.text.slice(
+            0,
+            12000
+          ),
+
+        textCharactersAvailable:
+          analysis.text.length,
+
+        textTruncated:
+          analysis.text.length >
+          12000,
+
+        retrievedAt:
+          new Date().toISOString(),
+      });
+    } catch (
+      error
+    ) {
+      return handlePublicPageError(
+        error,
+        res
+      );
     }
   }
 );
@@ -1727,15 +4093,20 @@ app.use(
         error:
           "Endpoint not found.",
 
-        availableEndpoints:
-          [
-            "GET /",
-            "GET /health",
-            "GET /openapi.json",
-            "GET /api/trends",
-            "POST /api/scrape",
-            "POST /api/parse-receipt",
-          ],
+        availableEndpoints: [
+          "GET /",
+          "GET /health",
+          "GET /openapi.json",
+          "POST /api/scrape",
+          "GET /api/exchange-rate",
+          "GET /api/trends",
+          "GET /api/weather",
+          "POST /api/url-analyze",
+          "POST /api/parse-receipt",
+          "GET /api/news-brief",
+          "GET /api/sec-company",
+          "POST /api/website-research",
+        ],
       });
   }
 );
@@ -1790,7 +4161,7 @@ app.listen(
     );
 
     console.log(
-      "🚀 x402 Trends Server ONLINE"
+      "🚀 x402 Agent Data API ONLINE"
     );
 
     console.log(
@@ -1798,7 +4169,7 @@ app.listen(
     );
 
     console.log(
-      "Version: 2.1.1"
+      `Version: ${VERSION}`
     );
 
     console.log(
@@ -1840,15 +4211,39 @@ app.listen(
     );
 
     console.log(
-      "GET  /api/trends          $0.02"
+      "POST /api/scrape             $0.005"
     );
 
     console.log(
-      "POST /api/scrape          $0.005"
+      "GET  /api/exchange-rate      $0.01"
     );
 
     console.log(
-      "POST /api/parse-receipt   $0.05"
+      "GET  /api/trends             $0.02"
+    );
+
+    console.log(
+      "GET  /api/weather            $0.02"
+    );
+
+    console.log(
+      "POST /api/url-analyze        $0.03"
+    );
+
+    console.log(
+      "POST /api/parse-receipt      $0.05"
+    );
+
+    console.log(
+      "GET  /api/news-brief         $0.05"
+    );
+
+    console.log(
+      "GET  /api/sec-company        $0.05"
+    );
+
+    console.log(
+      "POST /api/website-research   $0.10"
     );
 
     console.log(
