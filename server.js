@@ -7,6 +7,7 @@ import { paymentMiddleware } from "@x402/express";
 import { x402ResourceServer } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { createCdpFacilitatorClient } from "@coinbase/cdp-sdk/x402";
+
 import {
   declareDiscoveryExtension,
   bazaarResourceServerExtension,
@@ -14,44 +15,98 @@ import {
 
 // ============================================================================
 // x402 AGENT DATA API
-// VERSION 2.2.0
-// Base Mainnet + Coinbase CDP + Bazaar Discovery
+// VERSION 2.2.1
+//
+// Base Mainnet
+// Coinbase CDP
+// Bazaar Discovery
+//
+// News improvement:
+// - 5 minute GDELT cache
+// - 6 second request spacing
+// - automatic rate-limit retry
 // ============================================================================
 
 const app = express();
 
 app.set("trust proxy", true);
 app.disable("x-powered-by");
-app.use(express.json({ limit: "1mb" }));
 
-const VERSION = "2.2.0";
-const PORT = Number(process.env.PORT || 3000);
-const HOST = "0.0.0.0";
-const NETWORK = "eip155:8453";
+app.use(
+  express.json({
+    limit: "1mb",
+  })
+);
 
-const PAY_TO = process.env.X402_PAY_TO;
-const SERVICE_CONTACT = process.env.SERVICE_CONTACT;
+const VERSION = "2.2.1";
 
-if (!PAY_TO || !/^0x[a-fA-F0-9]{40}$/.test(PAY_TO)) {
-  console.error("❌ Missing or invalid X402_PAY_TO.");
-  process.exit(1);
-}
-
-if (!process.env.CDP_API_KEY_ID) {
-  console.error("❌ Missing CDP_API_KEY_ID.");
-  process.exit(1);
-}
-
-if (!process.env.CDP_API_KEY_SECRET) {
-  console.error("❌ Missing CDP_API_KEY_SECRET.");
-  process.exit(1);
-}
-
-if (!SERVICE_CONTACT || !SERVICE_CONTACT.includes("@")) {
-  console.error("❌ Missing SERVICE_CONTACT.");
-  console.error(
-    'Add a Render environment variable such as: SERVICE_CONTACT="x402 Agent Data API your-email@example.com"'
+const PORT =
+  Number(
+    process.env.PORT ||
+      3000
   );
+
+const HOST =
+  "0.0.0.0";
+
+const NETWORK =
+  "eip155:8453";
+
+const PAY_TO =
+  process.env.X402_PAY_TO;
+
+const SERVICE_CONTACT =
+  process.env.SERVICE_CONTACT;
+
+// ============================================================================
+// REQUIRED ENVIRONMENT VARIABLES
+// ============================================================================
+
+if (
+  !PAY_TO ||
+  !/^0x[a-fA-F0-9]{40}$/.test(
+    PAY_TO
+  )
+) {
+  console.error(
+    "❌ Missing or invalid X402_PAY_TO."
+  );
+
+  process.exit(1);
+}
+
+if (
+  !process.env
+    .CDP_API_KEY_ID
+) {
+  console.error(
+    "❌ Missing CDP_API_KEY_ID."
+  );
+
+  process.exit(1);
+}
+
+if (
+  !process.env
+    .CDP_API_KEY_SECRET
+) {
+  console.error(
+    "❌ Missing CDP_API_KEY_SECRET."
+  );
+
+  process.exit(1);
+}
+
+if (
+  !SERVICE_CONTACT ||
+  !SERVICE_CONTACT.includes(
+    "@"
+  )
+) {
+  console.error(
+    "❌ Missing SERVICE_CONTACT."
+  );
+
   process.exit(1);
 }
 
@@ -59,312 +114,288 @@ const APP_USER_AGENT =
   `${SERVICE_CONTACT} x402-agent-data-api/${VERSION}`;
 
 // ============================================================================
-// FREE ROUTES
+// FREE HOME PAGE
 // ============================================================================
 
-app.get("/", (_req, res) => {
-  res.json({
-    name: "x402 Agent Data API",
-    version: VERSION,
-    status: "online",
-    mode: "PRODUCTION",
+app.get(
+  "/",
 
-    network: NETWORK,
-    networkName: "Base Mainnet",
-
-    currency: "USDC",
-    paymentProtocol: "x402",
-
-    bazaarDiscovery: true,
-
-    receivingWallet: PAY_TO,
-
-    paidEndpoints: {
-      scrape: {
-        method: "POST",
-        path: "/api/scrape",
-        price: "$0.005",
-      },
-
-      exchangeRate: {
-        method: "GET",
-        path: "/api/exchange-rate",
-        price: "$0.01",
-      },
-
-      trends: {
-        method: "GET",
-        path: "/api/trends",
-        price: "$0.02",
-      },
-
-      weather: {
-        method: "GET",
-        path: "/api/weather",
-        price: "$0.02",
-      },
-
-      urlAnalyze: {
-        method: "POST",
-        path: "/api/url-analyze",
-        price: "$0.03",
-      },
-
-      parseReceipt: {
-        method: "POST",
-        path: "/api/parse-receipt",
-        price: "$0.05",
-      },
-
-      newsBrief: {
-        method: "GET",
-        path: "/api/news-brief",
-        price: "$0.05",
-      },
-
-      secCompany: {
-        method: "GET",
-        path: "/api/sec-company",
-        price: "$0.05",
-      },
-
-      websiteResearch: {
-        method: "POST",
-        path: "/api/website-research",
-        price: "$0.10",
-      },
-    },
-  });
-});
-
-app.get("/health", (_req, res) => {
-  res.json({
-    status: "ok",
-
-    service:
-      "x402-agent-data-api",
-
-    version:
-      VERSION,
-
-    mode:
-      "PRODUCTION",
-
-    network:
-      NETWORK,
-
-    bazaarDiscovery:
-      true,
-
-    timestamp:
-      new Date().toISOString(),
-  });
-});
-
-// ============================================================================
-// OPENAPI
-// ============================================================================
-
-app.get("/openapi.json", (_req, res) => {
-  res.json({
-    openapi:
-      "3.1.0",
-
-    info: {
-      title:
+  (_req, res) => {
+    res.json({
+      name:
         "x402 Agent Data API",
 
       version:
         VERSION,
 
-      description:
-        "Paid AI-agent data tools using x402 on Base Mainnet.",
-    },
+      status:
+        "online",
 
-    servers: [
-      {
-        url:
-          "https://x402-trends-server.onrender.com",
-      },
-    ],
+      mode:
+        "PRODUCTION",
 
-    paths: {
-      "/api/scrape": {
-        post: {
-          summary:
-            "Extract readable webpage text",
+      network:
+        NETWORK,
 
-          responses: {
-            402: {
-              description:
-                "Payment required",
-            },
+      networkName:
+        "Base Mainnet",
 
-            200: {
-              description:
-                "Success",
-            },
-          },
+      currency:
+        "USDC",
+
+      paymentProtocol:
+        "x402",
+
+      bazaarDiscovery:
+        true,
+
+      receivingWallet:
+        PAY_TO,
+
+      paidEndpoints: {
+        scrape: {
+          method:
+            "POST",
+
+          path:
+            "/api/scrape",
+
+          price:
+            "$0.005",
+        },
+
+        exchangeRate: {
+          method:
+            "GET",
+
+          path:
+            "/api/exchange-rate",
+
+          price:
+            "$0.01",
+        },
+
+        trends: {
+          method:
+            "GET",
+
+          path:
+            "/api/trends",
+
+          price:
+            "$0.02",
+        },
+
+        weather: {
+          method:
+            "GET",
+
+          path:
+            "/api/weather",
+
+          price:
+            "$0.02",
+        },
+
+        urlAnalyze: {
+          method:
+            "POST",
+
+          path:
+            "/api/url-analyze",
+
+          price:
+            "$0.03",
+        },
+
+        parseReceipt: {
+          method:
+            "POST",
+
+          path:
+            "/api/parse-receipt",
+
+          price:
+            "$0.05",
+        },
+
+        newsBrief: {
+          method:
+            "GET",
+
+          path:
+            "/api/news-brief",
+
+          price:
+            "$0.05",
+        },
+
+        secCompany: {
+          method:
+            "GET",
+
+          path:
+            "/api/sec-company",
+
+          price:
+            "$0.05",
+        },
+
+        websiteResearch: {
+          method:
+            "POST",
+
+          path:
+            "/api/website-research",
+
+          price:
+            "$0.10",
         },
       },
-
-      "/api/exchange-rate": {
-        get: {
-          summary:
-            "Convert currencies",
-
-          responses: {
-            402: {
-              description:
-                "Payment required",
-            },
-
-            200: {
-              description:
-                "Success",
-            },
-          },
-        },
-      },
-
-      "/api/trends": {
-        get: {
-          summary:
-            "Latest spaceflight news",
-
-          responses: {
-            402: {
-              description:
-                "Payment required",
-            },
-
-            200: {
-              description:
-                "Success",
-            },
-          },
-        },
-      },
-
-      "/api/weather": {
-        get: {
-          summary:
-            "U.S. weather forecast by coordinates",
-
-          responses: {
-            402: {
-              description:
-                "Payment required",
-            },
-
-            200: {
-              description:
-                "Success",
-            },
-          },
-        },
-      },
-
-      "/api/url-analyze": {
-        post: {
-          summary:
-            "Analyze webpage structure and metadata",
-
-          responses: {
-            402: {
-              description:
-                "Payment required",
-            },
-
-            200: {
-              description:
-                "Success",
-            },
-          },
-        },
-      },
-
-      "/api/parse-receipt": {
-        post: {
-          summary:
-            "Parse receipt text",
-
-          responses: {
-            402: {
-              description:
-                "Payment required",
-            },
-
-            200: {
-              description:
-                "Success",
-            },
-          },
-        },
-      },
-
-      "/api/news-brief": {
-        get: {
-          summary:
-            "Search recent news by topic",
-
-          responses: {
-            402: {
-              description:
-                "Payment required",
-            },
-
-            200: {
-              description:
-                "Success",
-            },
-          },
-        },
-      },
-
-      "/api/sec-company": {
-        get: {
-          summary:
-            "SEC company and recent filing data",
-
-          responses: {
-            402: {
-              description:
-                "Payment required",
-            },
-
-            200: {
-              description:
-                "Success",
-            },
-          },
-        },
-      },
-
-      "/api/website-research": {
-        post: {
-          summary:
-            "Detailed website research snapshot",
-
-          responses: {
-            402: {
-              description:
-                "Payment required",
-            },
-
-            200: {
-              description:
-                "Success",
-            },
-          },
-        },
-      },
-    },
-  });
-});
+    });
+  }
+);
 
 // ============================================================================
-// X402 / COINBASE CDP / BAZAAR
+// HEALTH
+// ============================================================================
+
+app.get(
+  "/health",
+
+  (_req, res) => {
+    res.json({
+      status:
+        "ok",
+
+      service:
+        "x402-agent-data-api",
+
+      version:
+        VERSION,
+
+      mode:
+        "PRODUCTION",
+
+      network:
+        NETWORK,
+
+      bazaarDiscovery:
+        true,
+
+      newsCacheEnabled:
+        true,
+
+      gdeltRequestSpacingMs:
+        6000,
+
+      timestamp:
+        new Date()
+          .toISOString(),
+    });
+  }
+);
+
+// ============================================================================
+// OPENAPI
+// ============================================================================
+
+app.get(
+  "/openapi.json",
+
+  (_req, res) => {
+    res.json({
+      openapi:
+        "3.1.0",
+
+      info: {
+        title:
+          "x402 Agent Data API",
+
+        version:
+          VERSION,
+
+        description:
+          "Paid AI-agent data tools using x402 on Base Mainnet.",
+      },
+
+      servers: [
+        {
+          url:
+            "https://x402-trends-server.onrender.com",
+        },
+      ],
+
+      paths: {
+        "/api/scrape": {
+          post: {
+            summary:
+              "Extract readable webpage text",
+          },
+        },
+
+        "/api/exchange-rate": {
+          get: {
+            summary:
+              "Convert currencies",
+          },
+        },
+
+        "/api/trends": {
+          get: {
+            summary:
+              "Latest spaceflight news",
+          },
+        },
+
+        "/api/weather": {
+          get: {
+            summary:
+              "U.S. weather forecast by coordinates",
+          },
+        },
+
+        "/api/url-analyze": {
+          post: {
+            summary:
+              "Analyze webpage structure and metadata",
+          },
+        },
+
+        "/api/parse-receipt": {
+          post: {
+            summary:
+              "Parse receipt text",
+          },
+        },
+
+        "/api/news-brief": {
+          get: {
+            summary:
+              "Search recent news by topic",
+          },
+        },
+
+        "/api/sec-company": {
+          get: {
+            summary:
+              "SEC company and recent filing data",
+          },
+        },
+
+        "/api/website-research": {
+          post: {
+            summary:
+              "Detailed website research snapshot",
+          },
+        },
+      },
+    });
+  }
+);
+
+// ============================================================================
+// X402
 // ============================================================================
 
 const facilitatorClient =
@@ -378,12 +409,13 @@ const resourceServer =
       NETWORK,
       new ExactEvmScheme()
     )
+
     .registerExtension(
       bazaarResourceServerExtension
     );
 
 // ============================================================================
-// SUCCESSFUL PAYMENT LOGGING
+// PAYMENT LOGGING
 // ============================================================================
 
 resourceServer.onAfterSettle(
@@ -445,7 +477,8 @@ resourceServer.onAfterSettle(
 
     console.log(
       `Time: ${
-        new Date().toISOString()
+        new Date()
+          .toISOString()
       }`
     );
 
@@ -458,14 +491,13 @@ resourceServer.onAfterSettle(
 );
 
 // ============================================================================
-// BAZAAR DISCOVERY HELPERS
+// BAZAAR HELPER
 // ============================================================================
 
 function makeDiscovery({
   input = {},
   inputSchema,
   outputExample,
-  outputSchema,
   bodyType,
 }) {
   return declareDiscoveryExtension({
@@ -485,22 +517,19 @@ function makeDiscovery({
       example:
         outputExample,
 
-      schema:
-        outputSchema,
+      schema: {
+        type:
+          "object",
+
+        additionalProperties:
+          true,
+      },
     },
   });
 }
 
-const simpleObjectSchema = {
-  type:
-    "object",
-
-  additionalProperties:
-    true,
-};
-
 // ============================================================================
-// BAZAAR: SPACE TRENDS
+// BAZAAR DEFINITIONS
 // ============================================================================
 
 const trendsDiscovery =
@@ -536,14 +565,7 @@ const trendsDiscovery =
         },
       ],
     },
-
-    outputSchema:
-      simpleObjectSchema,
   });
-
-// ============================================================================
-// BAZAAR: SCRAPER
-// ============================================================================
 
 const scrapeDiscovery =
   makeDiscovery({
@@ -587,14 +609,7 @@ const scrapeDiscovery =
       extractedText:
         "Example Domain...",
     },
-
-    outputSchema:
-      simpleObjectSchema,
   });
-
-// ============================================================================
-// BAZAAR: EXCHANGE RATE
-// ============================================================================
 
 const exchangeDiscovery =
   makeDiscovery({
@@ -655,14 +670,7 @@ const exchangeDiscovery =
       convertedAmount:
         86,
     },
-
-    outputSchema:
-      simpleObjectSchema,
   });
-
-// ============================================================================
-// BAZAAR: WEATHER
-// ============================================================================
 
 const weatherDiscovery =
   makeDiscovery({
@@ -739,14 +747,7 @@ const weatherDiscovery =
         },
       ],
     },
-
-    outputSchema:
-      simpleObjectSchema,
   });
-
-// ============================================================================
-// BAZAAR: URL ANALYZER
-// ============================================================================
 
 const urlAnalyzeDiscovery =
   makeDiscovery({
@@ -800,14 +801,7 @@ const urlAnalyzeDiscovery =
       linkCount:
         4,
     },
-
-    outputSchema:
-      simpleObjectSchema,
   });
-
-// ============================================================================
-// BAZAAR: RECEIPT PARSER
-// ============================================================================
 
 const receiptDiscovery =
   makeDiscovery({
@@ -860,14 +854,7 @@ const receiptDiscovery =
           4.86,
       },
     },
-
-    outputSchema:
-      simpleObjectSchema,
   });
-
-// ============================================================================
-// BAZAAR: NEWS
-// ============================================================================
 
 const newsDiscovery =
   makeDiscovery({
@@ -924,6 +911,9 @@ const newsDiscovery =
       count:
         10,
 
+      cached:
+        false,
+
       articles: [
         {
           title:
@@ -934,14 +924,7 @@ const newsDiscovery =
         },
       ],
     },
-
-    outputSchema:
-      simpleObjectSchema,
   });
-
-// ============================================================================
-// BAZAAR: SEC
-// ============================================================================
 
 const secDiscovery =
   makeDiscovery({
@@ -989,14 +972,7 @@ const secDiscovery =
         },
       ],
     },
-
-    outputSchema:
-      simpleObjectSchema,
   });
-
-// ============================================================================
-// BAZAAR: WEBSITE RESEARCH
-// ============================================================================
 
 const researchDiscovery =
   makeDiscovery({
@@ -1048,18 +1024,16 @@ const researchDiscovery =
           350,
       },
 
-      topExternalDomains: [],
+      topExternalDomains:
+        [],
 
       textExcerpt:
         "Example Domain...",
     },
-
-    outputSchema:
-      simpleObjectSchema,
   });
 
 // ============================================================================
-// PAID X402 ROUTES
+// PAID ROUTE CONFIG
 // ============================================================================
 
 const routesConfig = {
@@ -1249,7 +1223,7 @@ const routesConfig = {
     ],
 
     description:
-      "Search recent global news for a topic and return structured headlines, source domains, URLs, dates, and source counts.",
+      "Search recent global news for a topic and return structured headlines, source domains, URLs, dates, and source counts. Results are cached briefly to reduce upstream rate-limit failures.",
 
     mimeType:
       "application/json",
@@ -1317,7 +1291,7 @@ const routesConfig = {
 };
 
 // ============================================================================
-// ENABLE X402
+// ENABLE PAYMENT PROTECTION
 // ============================================================================
 
 app.use(
@@ -1328,7 +1302,7 @@ app.use(
 );
 
 // ============================================================================
-// PUBLIC-WEB SAFETY
+// WEB SAFETY
 // ============================================================================
 
 function isPrivateIPv4(
@@ -1340,10 +1314,14 @@ function isPrivateIPv4(
       .map(Number);
 
   if (
-    parts.length !== 4 ||
+    parts.length !==
+      4 ||
+
     parts.some(
       (n) =>
-        !Number.isInteger(n) ||
+        !Number.isInteger(
+          n
+        ) ||
         n < 0 ||
         n > 255
     )
@@ -1439,10 +1417,14 @@ function isPrivateIPv6(
     )
   ) {
     const ipv4 =
-      value.slice(7);
+      value.slice(
+        7
+      );
 
     if (
-      isIP(ipv4) === 4
+      isIP(
+        ipv4
+      ) === 4
     ) {
       return isPrivateIPv4(
         ipv4
@@ -1457,7 +1439,9 @@ function isPrivateAddress(
   address
 ) {
   if (
-    isIP(address) === 4
+    isIP(
+      address
+    ) === 4
   ) {
     return isPrivateIPv4(
       address
@@ -1465,7 +1449,9 @@ function isPrivateAddress(
   }
 
   if (
-    isIP(address) === 6
+    isIP(
+      address
+    ) === 6
   ) {
     return isPrivateIPv6(
       address
@@ -1514,11 +1500,13 @@ async function validatePublicUrl(
   }
 
   const hostname =
-    parsed.hostname.toLowerCase();
+    parsed.hostname
+      .toLowerCase();
 
   if (
     hostname ===
       "localhost" ||
+
     hostname.endsWith(
       ".localhost"
     )
@@ -1543,12 +1531,14 @@ async function validatePublicUrl(
       );
     }
 
-    return parsed.toString();
+    return parsed
+      .toString();
   }
 
   const addresses =
     await lookup(
       hostname,
+
       {
         all:
           true,
@@ -1581,7 +1571,8 @@ async function validatePublicUrl(
     }
   }
 
-  return parsed.toString();
+  return parsed
+    .toString();
 }
 
 // ============================================================================
@@ -1661,6 +1652,7 @@ function htmlToText(
       /\s+/g,
       " "
     )
+
     .trim();
 }
 
@@ -1677,7 +1669,8 @@ function firstMatch(
 
   return match?.[1]
     ? decodeHtmlEntities(
-        match[1].trim()
+        match[1]
+          .trim()
       )
     : null;
 }
@@ -1709,7 +1702,7 @@ function absoluteUrl(
 }
 
 // ============================================================================
-// SAFE WEBPAGE FETCHER
+// FETCH PUBLIC PAGE
 // ============================================================================
 
 async function fetchPublicPage(
@@ -1749,8 +1742,10 @@ async function fetchPublicPage(
           (
             status
           ) =>
-            status >= 200 &&
-            status < 300,
+            status >=
+              200 &&
+            status <
+              300,
       }
     );
 
@@ -1766,9 +1761,11 @@ async function fetchPublicPage(
     !contentType.includes(
       "text/html"
     ) &&
+
     !contentType.includes(
       "text/plain"
     ) &&
+
     !contentType.includes(
       "application/xhtml"
     )
@@ -1843,23 +1840,23 @@ function analyzeHtml(
       /<html[^>]+lang=["']([^"']+)["'][^>]*>/i
     );
 
-  const headingMatches = [
-    ...String(
-      html
-    ).matchAll(
-      /<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi
-    ),
-  ];
-
   const headings =
     unique(
-      headingMatches
+      [
+        ...String(
+          html
+        ).matchAll(
+          /<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi
+        ),
+      ]
+
         .map(
           (m) =>
             htmlToText(
               m[1]
             )
         )
+
         .filter(
           Boolean
         )
@@ -1868,17 +1865,16 @@ function analyzeHtml(
       50
     );
 
-  const hrefMatches = [
-    ...String(
-      html
-    ).matchAll(
-      /<a[^>]+href=["']([^"']+)["'][^>]*>/gi
-    ),
-  ];
-
   const links =
     unique(
-      hrefMatches
+      [
+        ...String(
+          html
+        ).matchAll(
+          /<a[^>]+href=["']([^"']+)["'][^>]*>/gi
+        ),
+      ]
+
         .map(
           (m) =>
             absoluteUrl(
@@ -1886,6 +1882,7 @@ function analyzeHtml(
               baseUrl
             )
         )
+
         .filter(
           Boolean
         )
@@ -1977,7 +1974,8 @@ function analyzeHtml(
       "tiktok.com",
   };
 
-  const socialLinks = {};
+  const socialLinks =
+    {};
 
   for (
     const [
@@ -1992,23 +1990,23 @@ function analyzeHtml(
       links.find(
         (link) => {
           try {
-            return (
-              new URL(
-                link
-              )
-                .hostname
-                .toLowerCase()
-                .includes(
-                  domain
-                )
-            );
+            return new URL(
+              link
+            )
+              .hostname
+              .toLowerCase()
+              .includes(
+                domain
+              );
           } catch {
             return false;
           }
         }
       );
 
-    if (found) {
+    if (
+      found
+    ) {
       socialLinks[
         name
       ] =
@@ -2037,6 +2035,7 @@ function analyzeHtml(
             .split(
               /\s+/
             )
+
             .filter(
               Boolean
             )
@@ -2142,10 +2141,6 @@ function buildExternalDomainCounts(
     );
 }
 
-// ============================================================================
-// WEBPAGE ERROR HANDLER
-// ============================================================================
-
 function handlePublicPageError(
   error,
   res
@@ -2153,8 +2148,9 @@ function handlePublicPageError(
   console.error(
     "Public page error:",
 
-    error.response?.data ||
-      error.message
+    error.response
+      ?.data ||
+    error.message
   );
 
   if (
@@ -2217,9 +2213,7 @@ function handlePublicPageError(
 }
 
 // ============================================================================
-// TOOL #1
-// WEB SCRAPER
-// $0.005
+// TOOL 1 - SCRAPE
 // ============================================================================
 
 app.post(
@@ -2309,9 +2303,7 @@ app.post(
 );
 
 // ============================================================================
-// TOOL #2
-// EXCHANGE RATE
-// $0.01
+// TOOL 2 - EXCHANGE RATE
 // ============================================================================
 
 app.get(
@@ -2367,7 +2359,8 @@ app.get(
         amount
       ) ||
 
-      amount <= 0 ||
+      amount <=
+        0 ||
 
       amount >
         1_000_000_000
@@ -2499,7 +2492,7 @@ app.get(
 
         error.response
           ?.data ||
-          error.message
+        error.message
       );
 
       return res
@@ -2513,9 +2506,7 @@ app.get(
 );
 
 // ============================================================================
-// TOOL #3
-// SPACE TRENDS
-// $0.02
+// TOOL 3 - SPACE TRENDS
 // ============================================================================
 
 app.get(
@@ -2567,6 +2558,7 @@ app.get(
             0,
             5
           )
+
           .map(
             (
               article
@@ -2617,7 +2609,8 @@ app.get(
           data.length,
 
         retrievedAt:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
 
         data,
       });
@@ -2629,7 +2622,7 @@ app.get(
 
         error.response
           ?.data ||
-          error.message
+        error.message
       );
 
       return res
@@ -2643,9 +2636,7 @@ app.get(
 );
 
 // ============================================================================
-// TOOL #4
-// WEATHER
-// $0.02
+// TOOL 4 - WEATHER
 // ============================================================================
 
 app.get(
@@ -2761,6 +2752,7 @@ app.get(
                 0,
                 10
               )
+
               .map(
                 (
                   period
@@ -2833,7 +2825,8 @@ app.get(
         periods,
 
         retrievedAt:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
       });
     } catch (
       error
@@ -2843,7 +2836,7 @@ app.get(
 
         error.response
           ?.data ||
-          error.message
+        error.message
       );
 
       if (
@@ -2870,9 +2863,7 @@ app.get(
 );
 
 // ============================================================================
-// TOOL #5
-// URL ANALYZER
-// $0.03
+// TOOL 5 - URL ANALYZER
 // ============================================================================
 
 app.post(
@@ -2963,7 +2954,8 @@ app.post(
           analysis.socialLinks,
 
         retrievedAt:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
       });
     } catch (
       error
@@ -3081,7 +3073,6 @@ function parseReceiptText(
 
       [
         /\bsubtotal\b/i,
-
         /\bsub total\b/i,
       ]
     );
@@ -3092,7 +3083,6 @@ function parseReceiptText(
 
       [
         /\btax\b/i,
-
         /\bsales tax\b/i,
       ]
     );
@@ -3103,11 +3093,8 @@ function parseReceiptText(
 
       [
         /\bgrand total\b/i,
-
         /\bamount due\b/i,
-
         /\bbalance due\b/i,
-
         /^total\b/i,
       ]
     );
@@ -3115,7 +3102,8 @@ function parseReceiptText(
   const ignored =
     /\b(subtotal|sub total|tax|grand total|amount due|balance due|total|change|cash|visa|mastercard|amex|credit|debit)\b/i;
 
-  const items = [];
+  const items =
+    [];
 
   for (
     const line of
@@ -3176,9 +3164,7 @@ function parseReceiptText(
 }
 
 // ============================================================================
-// TOOL #6
-// RECEIPT PARSER
-// $0.05
+// TOOL 6 - RECEIPT PARSER
 // ============================================================================
 
 app.post(
@@ -3261,10 +3247,272 @@ app.post(
 );
 
 // ============================================================================
-// TOOL #7
-// NEWS BRIEF
-// $0.05
+// TOOL 7 - NEWS BRIEF
+//
+// GDELT FIX:
+//
+// - cache results for 5 minutes
+// - never start GDELT calls less than 6 seconds apart
+// - retry automatically when GDELT rate-limits
 // ============================================================================
+
+const NEWS_CACHE_TTL_MS =
+  5 *
+  60 *
+  1000;
+
+const GDELT_MIN_INTERVAL_MS =
+  6000;
+
+const GDELT_MAX_ATTEMPTS =
+  3;
+
+const newsCache =
+  new Map();
+
+let gdeltLastStartedAt =
+  0;
+
+let gdeltQueue =
+  Promise.resolve();
+
+function sleep(
+  ms
+) {
+  return new Promise(
+    (
+      resolve
+    ) =>
+      setTimeout(
+        resolve,
+        ms
+      )
+  );
+}
+
+function scheduleGdeltRequest(
+  task
+) {
+  const run =
+    gdeltQueue.then(
+      async () => {
+        const elapsed =
+          Date.now() -
+          gdeltLastStartedAt;
+
+        const waitMs =
+          Math.max(
+            0,
+
+            GDELT_MIN_INTERVAL_MS -
+            elapsed
+          );
+
+        if (
+          waitMs >
+          0
+        ) {
+          await sleep(
+            waitMs
+          );
+        }
+
+        gdeltLastStartedAt =
+          Date.now();
+
+        return task();
+      }
+    );
+
+  gdeltQueue =
+    run.catch(
+      () =>
+        undefined
+    );
+
+  return run;
+}
+
+function gdeltErrorText(
+  error
+) {
+  const data =
+    error
+      ?.response
+      ?.data;
+
+  if (
+    typeof data ===
+    "string"
+  ) {
+    return data;
+  }
+
+  if (
+    data &&
+    typeof data ===
+      "object"
+  ) {
+    try {
+      return JSON.stringify(
+        data
+      );
+    } catch {
+      return String(
+        data
+      );
+    }
+  }
+
+  return String(
+    error?.message ||
+    ""
+  );
+}
+
+function isGdeltRateLimitError(
+  error
+) {
+  const status =
+    Number(
+      error
+        ?.response
+        ?.status ||
+      0
+    );
+
+  const text =
+    gdeltErrorText(
+      error
+    ).toLowerCase();
+
+  return (
+    status ===
+      429 ||
+
+    text.includes(
+      "one every 5 seconds"
+    ) ||
+
+    text.includes(
+      "rate limit"
+    ) ||
+
+    text.includes(
+      "too many requests"
+    )
+  );
+}
+
+async function requestGdelt({
+  topic,
+  limit,
+  timespan,
+}) {
+  let lastError;
+
+  for (
+    let attempt = 1;
+
+    attempt <=
+    GDELT_MAX_ATTEMPTS;
+
+    attempt += 1
+  ) {
+    try {
+      return await scheduleGdeltRequest(
+        () =>
+          axios.get(
+            "https://api.gdeltproject.org/api/v2/doc/doc",
+
+            {
+              timeout:
+                20000,
+
+              params: {
+                query:
+                  topic,
+
+                mode:
+                  "artlist",
+
+                format:
+                  "json",
+
+                maxrecords:
+                  limit,
+
+                sort:
+                  "datedesc",
+
+                timespan,
+              },
+
+              headers: {
+                Accept:
+                  "application/json",
+
+                "User-Agent":
+                  `x402-agent-data-api/${VERSION}`,
+              },
+            }
+          )
+      );
+    } catch (
+      error
+    ) {
+      lastError =
+        error;
+
+      if (
+        !isGdeltRateLimitError(
+          error
+        ) ||
+
+        attempt ===
+          GDELT_MAX_ATTEMPTS
+      ) {
+        throw error;
+      }
+
+      const backoffMs =
+        6500 *
+        attempt;
+
+      console.warn(
+        `GDELT rate limited request. Retry ${attempt}/${GDELT_MAX_ATTEMPTS} after ${backoffMs}ms.`
+      );
+
+      await sleep(
+        backoffMs
+      );
+    }
+  }
+
+  throw lastError;
+}
+
+function pruneNewsCache() {
+  const now =
+    Date.now();
+
+  for (
+    const [
+      key,
+      entry,
+    ] of
+      newsCache.entries()
+  ) {
+    if (
+      entry.expiresAt <=
+      now
+    ) {
+      newsCache.delete(
+        key
+      );
+    }
+  }
+}
 
 app.get(
   "/api/news-brief",
@@ -3308,8 +3556,10 @@ app.get(
 
     if (
       !topic ||
-      topic.length < 2 ||
-      topic.length > 200
+      topic.length <
+        2 ||
+      topic.length >
+        200
     ) {
       return res
         .status(400)
@@ -3345,43 +3595,43 @@ app.get(
         });
     }
 
+    pruneNewsCache();
+
+    const cacheKey =
+      `${topic.toLowerCase()}|${limit}|${timespan}`;
+
+    const cached =
+      newsCache.get(
+        cacheKey
+      );
+
+    if (
+      cached &&
+      cached.expiresAt >
+        Date.now()
+    ) {
+      return res.json({
+        ...cached.value,
+
+        cached:
+          true,
+
+        cacheExpiresAt:
+          new Date(
+            cached.expiresAt
+          ).toISOString(),
+      });
+    }
+
     try {
       const response =
-        await axios.get(
-          "https://api.gdeltproject.org/api/v2/doc/doc",
+        await requestGdelt({
+          topic,
 
-          {
-            timeout:
-              15000,
+          limit,
 
-            params: {
-              query:
-                topic,
-
-              mode:
-                "artlist",
-
-              format:
-                "json",
-
-              maxrecords:
-                limit,
-
-              sort:
-                "datedesc",
-
-              timespan,
-            },
-
-            headers: {
-              Accept:
-                "application/json",
-
-              "User-Agent":
-                `x402-agent-data-api/${VERSION}`,
-            },
-          }
-        );
+          timespan,
+        });
 
       const articles =
         Array.isArray(
@@ -3447,7 +3697,7 @@ app.get(
           )
         );
 
-      return res.json({
+      const value = {
         status:
           "success",
 
@@ -3470,21 +3720,63 @@ app.get(
         sources,
 
         retrievedAt:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
 
         articles:
           data,
-      });
+
+        cached:
+          false,
+      };
+
+      newsCache.set(
+        cacheKey,
+
+        {
+          value,
+
+          expiresAt:
+            Date.now() +
+            NEWS_CACHE_TTL_MS,
+        }
+      );
+
+      return res.json(
+        value
+      );
     } catch (
       error
     ) {
+      const message =
+        gdeltErrorText(
+          error
+        );
+
       console.error(
         "News brief error:",
 
-        error.response
-          ?.data ||
-          error.message
+        message
       );
+
+      if (
+        isGdeltRateLimitError(
+          error
+        )
+      ) {
+        return res
+          .status(503)
+          .json({
+            error:
+              "News provider is temporarily rate-limited. Please retry shortly.",
+
+            provider:
+              "GDELT DOC 2.0",
+
+            retryAfterSeconds:
+              15,
+          });
+      }
 
       return res
         .status(502)
@@ -3497,7 +3789,7 @@ app.get(
 );
 
 // ============================================================================
-// SEC CACHE
+// TOOL 8 - SEC COMPANY
 // ============================================================================
 
 let tickerCache = {
@@ -3620,7 +3912,8 @@ function mapRecentSecFilings(
   recent,
   limit = 12
 ) {
-  const result = [];
+  const result =
+    [];
 
   const forms =
     Array.isArray(
@@ -3701,12 +3994,6 @@ function mapRecentSecFilings(
 
   return result;
 }
-
-// ============================================================================
-// TOOL #8
-// SEC COMPANY INTELLIGENCE
-// $0.05
-// ============================================================================
 
 app.get(
   "/api/sec-company",
@@ -3806,7 +4093,8 @@ app.get(
         mapRecentSecFilings(
           cik,
 
-          company.filings
+          company
+            .filings
             ?.recent,
 
           12
@@ -3883,7 +4171,8 @@ app.get(
           ),
 
         retrievedAt:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
       };
 
       companyCache.set(
@@ -3910,7 +4199,7 @@ app.get(
 
         error.response
           ?.data ||
-          error.message
+        error.message
       );
 
       if (
@@ -3937,9 +4226,7 @@ app.get(
 );
 
 // ============================================================================
-// TOOL #9
-// WEBSITE RESEARCH
-// $0.10
+// TOOL 9 - WEBSITE RESEARCH
 // ============================================================================
 
 app.post(
@@ -4065,7 +4352,8 @@ app.post(
           12000,
 
         retrievedAt:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
       });
     } catch (
       error
@@ -4201,7 +4489,11 @@ app.listen(
     );
 
     console.log(
-      "Render Trust Proxy: ENABLED"
+      "GDELT cache: ENABLED (5 minutes)"
+    );
+
+    console.log(
+      "GDELT request spacing: 6 seconds"
     );
 
     console.log("");
