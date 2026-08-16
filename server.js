@@ -3,18 +3,14 @@ import axios from "axios";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  paymentMiddleware,
-  x402ResourceServer,
-} from "@x402/express";
-
-import { HTTPFacilitatorClient } from "@x402/core/server";
-
+import { paymentMiddleware } from "@x402/express";
+import { x402ResourceServer } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
+import { createCdpFacilitatorClient } from "@coinbase/cdp-sdk/x402";
 
 // ============================================================================
 // X402 TRENDS SERVER
-// TEST MODE - BASE SEPOLIA
+// PRODUCTION - BASE MAINNET
 // ============================================================================
 
 const app = express();
@@ -22,27 +18,34 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const HOST = "0.0.0.0";
 
-// ============================================================================
-// TESTNET CONFIGURATION
-//
-// IMPORTANT:
-// We are deliberately hard-coding these for now.
-//
-// Base Sepolia = TEST NETWORK
-// x402.org facilitator = TEST FACILITATOR
-//
-// No Coinbase CDP account or API key is required.
-// ============================================================================
+// Base Mainnet
+const NETWORK = "eip155:8453";
 
-const NETWORK = "eip155:84532";
-
-const FACILITATOR_URL =
-  "https://x402.org/facilitator";
-
-// Your PUBLIC EVM wallet address.
-// Never put your private key in this server.
+// Public wallet that receives REAL USDC.
+// You can change this in Render without changing the code.
 const PAY_TO =
+  process.env.X402_PAY_TO ||
   "0xF61F957D9aC432309219549b1Ae79Ae8b7C71fF5";
+
+// ============================================================================
+// REQUIRE PRODUCTION CREDENTIALS
+// ============================================================================
+
+if (!process.env.CDP_API_KEY_ID) {
+  console.error("");
+  console.error("❌ CDP_API_KEY_ID is missing.");
+  console.error("Add it in Render Environment Variables.");
+  console.error("");
+  process.exit(1);
+}
+
+if (!process.env.CDP_API_KEY_SECRET) {
+  console.error("");
+  console.error("❌ CDP_API_KEY_SECRET is missing.");
+  console.error("Add it in Render Environment Variables.");
+  console.error("");
+  process.exit(1);
+}
 
 // ============================================================================
 // EXPRESS CONFIG
@@ -57,22 +60,22 @@ app.use(
 );
 
 // ============================================================================
-// FREE ROUTES
+// FREE HOME ROUTE
 // ============================================================================
 
 app.get("/", (req, res) => {
   res.json({
     name: "x402 Trends Server",
-    version: "1.3.0",
+    version: "2.0.0",
     status: "online",
 
-    mode: "TESTNET",
+    mode: "PRODUCTION",
 
     network: NETWORK,
 
-    facilitator: FACILITATOR_URL,
-
     paymentProtocol: "x402",
+
+    currency: "USDC",
 
     endpoints: {
       home: "/",
@@ -101,23 +104,21 @@ app.get("/", (req, res) => {
 app.get("/health", (req, res) => {
   res.status(200).json({
     status: "ok",
-
     service: "x402-trends-server",
+    version: "2.0.0",
 
-    version: "1.3.0",
-
-    mode: "TESTNET",
+    mode: "PRODUCTION",
 
     network: NETWORK,
 
-    facilitator: FACILITATOR_URL,
+    currency: "USDC",
 
     timestamp: new Date().toISOString(),
   });
 });
 
 // ============================================================================
-// OPENAPI FILE
+// OPENAPI
 // ============================================================================
 
 const __filename = fileURLToPath(import.meta.url);
@@ -139,21 +140,21 @@ app.get("/openapi.json", (req, res) => {
 });
 
 // ============================================================================
-// X402 FACILITATOR
+// COINBASE CDP PRODUCTION FACILITATOR
+//
+// createCdpFacilitatorClient reads:
+//
+// CDP_API_KEY_ID
+// CDP_API_KEY_SECRET
+//
+// from Render's environment variables.
 // ============================================================================
 
 console.log("");
-console.log("Creating x402 facilitator client...");
-console.log(`Facilitator URL: ${FACILITATOR_URL}`);
-console.log(`Network: ${NETWORK}`);
-
-// This is the official test facilitator.
-// No Coinbase credentials are used here.
+console.log("Connecting to production x402 facilitator...");
 
 const facilitatorClient =
-  new HTTPFacilitatorClient({
-    url: FACILITATOR_URL,
-  });
+  createCdpFacilitatorClient();
 
 // ============================================================================
 // X402 RESOURCE SERVER
@@ -168,48 +169,131 @@ const resourceServer =
   );
 
 // ============================================================================
-// PAID ENDPOINT CONFIGURATION
+// PAYMENT SETTLEMENT LOGGING
+//
+// Every successfully settled x402 payment will show in Render Logs.
+// ============================================================================
+
+resourceServer.onAfterSettle(
+  async ({
+    result,
+    requirements,
+  }) => {
+    console.log("");
+    console.log(
+      "===================================================",
+    );
+
+    console.log(
+      "💰💰💰 X402 PAYMENT RECEIVED 💰💰💰",
+    );
+
+    console.log(
+      "===================================================",
+    );
+
+    console.log(
+      `Payer: ${result?.payer || "unknown"}`,
+    );
+
+    console.log(
+      `Seller: ${
+        requirements?.payTo ||
+        PAY_TO
+      }`,
+    );
+
+    console.log(
+      `Network: ${
+        result?.network ||
+        NETWORK
+      }`,
+    );
+
+    console.log(
+      `Transaction: ${
+        result?.transaction ||
+        "unknown"
+      }`,
+    );
+
+    if (
+      requirements?.amount
+    ) {
+      console.log(
+        `Amount (token base units): ${requirements.amount}`,
+      );
+    }
+
+    if (
+      requirements?.asset
+    ) {
+      console.log(
+        `Asset: ${requirements.asset}`,
+      );
+    } else {
+      console.log(
+        "Asset: USDC (network default)",
+      );
+    }
+
+    console.log(
+      `Time: ${new Date().toISOString()}`,
+    );
+
+    console.log(
+      "===================================================",
+    );
+
+    console.log("");
+  },
+);
+
+// ============================================================================
+// X402 ROUTE CONFIGURATION
 // ============================================================================
 
 const routesConfig = {
   // --------------------------------------------------------------------------
-  // SPACE NEWS
+  // TRENDS
   // --------------------------------------------------------------------------
 
   "GET /api/trends": {
     accepts: [
       {
         scheme: "exact",
-        price: "$0.02",
         network: NETWORK,
         payTo: PAY_TO,
+        price: "$0.02",
       },
     ],
 
     description:
       "Returns the five newest spaceflight news articles.",
 
-    mimeType: "application/json",
+    mimeType:
+      "application/json",
   },
 
   // --------------------------------------------------------------------------
-  // WEBSITE SCRAPER
+  // SCRAPER
   // --------------------------------------------------------------------------
 
   "POST /api/scrape": {
     accepts: [
       {
         scheme: "exact",
-        price: "$0.005",
         network: NETWORK,
         payTo: PAY_TO,
+        price: "$0.005",
       },
     ],
 
     description:
       "Fetches a public webpage and returns cleaned readable text.",
 
-    mimeType: "application/json",
+    mimeType:
+      "application/json",
   },
 
   // --------------------------------------------------------------------------
@@ -220,21 +304,22 @@ const routesConfig = {
     accepts: [
       {
         scheme: "exact",
-        price: "$0.05",
         network: NETWORK,
         payTo: PAY_TO,
+        price: "$0.05",
       },
     ],
 
     description:
       "Parses receipt text and extracts items, subtotal, tax, and total.",
 
-    mimeType: "application/json",
+    mimeType:
+      "application/json",
   },
 };
 
 // ============================================================================
-// ENABLE X402 PAYMENT PROTECTION
+// ENABLE PAYMENT PROTECTION
 // ============================================================================
 
 app.use(
@@ -245,8 +330,38 @@ app.use(
 );
 
 // ============================================================================
+// PAID ENDPOINT ACCESS LOGGER
+//
+// Reaching one of these handlers means x402 payment protection passed.
+// ============================================================================
+
+function logPaidResource(
+  req,
+  price,
+) {
+  console.log("");
+  console.log(
+    "✅ PAID RESOURCE SERVED",
+  );
+
+  console.log(
+    `Endpoint: ${req.method} ${req.path}`,
+  );
+
+  console.log(
+    `Price: ${price} USDC`,
+  );
+
+  console.log(
+    `Time: ${new Date().toISOString()}`,
+  );
+
+  console.log("");
+}
+
+// ============================================================================
 // TOOL #1
-// SPACEFLIGHT TRENDS
+// SPACE TRENDS
 // ============================================================================
 
 app.get(
@@ -254,63 +369,81 @@ app.get(
 
   async (req, res) => {
     try {
-      const response = await axios.get(
-        "https://api.spaceflightnewsapi.net/v4/articles/",
-        {
-          timeout: 15000,
-
-          params: {
-            limit: 5,
-            ordering: "-published_at",
-          },
-
-          headers: {
-            Accept: "application/json",
-
-            "User-Agent":
-              "x402-trends-server/1.3",
-          },
-        },
+      logPaidResource(
+        req,
+        "$0.02",
       );
+
+      const response =
+        await axios.get(
+          "https://api.spaceflightnewsapi.net/v4/articles/",
+          {
+            timeout: 15000,
+
+            params: {
+              limit: 5,
+              ordering:
+                "-published_at",
+            },
+
+            headers: {
+              Accept:
+                "application/json",
+
+              "User-Agent":
+                "x402-trends-server/2.0",
+            },
+          },
+        );
 
       const articles =
         Array.isArray(
-          response.data?.results,
+          response.data
+            ?.results,
         )
           ? response.data.results
           : [];
 
-      const trends = articles
-        .slice(0, 5)
-        .map((article) => {
-          return {
-            id: article.id,
+      const trends =
+        articles
+          .slice(0, 5)
+          .map(
+            (article) => ({
+              id:
+                article.id,
 
-            title: article.title,
+              title:
+                article.title,
 
-            summary:
-              article.summary,
+              summary:
+                article.summary,
 
-            url: article.url,
+              url:
+                article.url,
 
-            imageUrl:
-              article.image_url,
+              imageUrl:
+                article.image_url,
 
-            newsSite:
-              article.news_site,
+              newsSite:
+                article.news_site,
 
-            publishedAt:
-              article.published_at,
-          };
-        });
+              publishedAt:
+                article.published_at,
+            }),
+          );
 
       return res.json({
-        status: "success",
+        status:
+          "success",
 
         payment:
           "verified",
 
-        network: NETWORK,
+        network:
+          NETWORK,
+
+        currency:
+          "USDC",
 
         source:
           "Spaceflight News API",
@@ -321,7 +454,8 @@ app.get(
         retrievedAt:
           new Date().toISOString(),
 
-        data: trends,
+        data:
+          trends,
       });
     } catch (error) {
       console.error(
@@ -330,10 +464,12 @@ app.get(
           error.message,
       );
 
-      return res.status(502).json({
-        error:
-          "Failed to retrieve space news.",
-      });
+      return res
+        .status(502)
+        .json({
+          error:
+            "Failed to retrieve space news.",
+        });
     }
   },
 );
@@ -348,22 +484,30 @@ app.post(
 
   async (req, res) => {
     try {
+      logPaidResource(
+        req,
+        "$0.005",
+      );
+
       const { url } =
         req.body || {};
 
       if (
         !url ||
-        typeof url !== "string"
+        typeof url !==
+          "string"
       ) {
-        return res.status(400).json({
-          error:
-            "Please provide a URL.",
+        return res
+          .status(400)
+          .json({
+            error:
+              "Please provide a URL.",
 
-          example: {
-            url:
-              "https://example.com",
-          },
-        });
+            example: {
+              url:
+                "https://example.com",
+            },
+          });
       }
 
       let parsedUrl;
@@ -372,10 +516,12 @@ app.post(
         parsedUrl =
           new URL(url);
       } catch {
-        return res.status(400).json({
-          error:
-            "Invalid URL.",
-        });
+        return res
+          .status(400)
+          .json({
+            error:
+              "Invalid URL.",
+          });
       }
 
       if (
@@ -384,13 +530,13 @@ app.post(
         parsedUrl.protocol !==
           "https:"
       ) {
-        return res.status(400).json({
-          error:
-            "Only HTTP and HTTPS URLs are supported.",
-        });
+        return res
+          .status(400)
+          .json({
+            error:
+              "Only HTTP and HTTPS URLs are supported.",
+          });
       }
-
-      // Basic protection against obvious local-server requests.
 
       const blockedHosts = [
         "localhost",
@@ -405,10 +551,12 @@ app.post(
           parsedUrl.hostname.toLowerCase(),
         )
       ) {
-        return res.status(400).json({
-          error:
-            "Local/private URLs are not allowed.",
-        });
+        return res
+          .status(400)
+          .json({
+            error:
+              "Local/private URLs are not allowed.",
+          });
       }
 
       const response =
@@ -427,7 +575,7 @@ app.post(
 
             headers: {
               "User-Agent":
-                "Mozilla/5.0 (compatible; x402-trends-server/1.3)",
+                "Mozilla/5.0 (compatible; x402-trends-server/2.0)",
 
               Accept:
                 "text/html,text/plain;q=0.9,*/*;q=0.5",
@@ -498,13 +646,17 @@ app.post(
         5000;
 
       return res.json({
-        status: "success",
+        status:
+          "success",
 
         payment:
           "verified",
 
         network:
           NETWORK,
+
+        currency:
+          "USDC",
 
         urlRequested:
           parsedUrl.toString(),
@@ -529,16 +681,18 @@ app.post(
           error.message,
       );
 
-      return res.status(502).json({
-        error:
-          "Failed to scrape the webpage.",
-      });
+      return res
+        .status(502)
+        .json({
+          error:
+            "Failed to scrape the webpage.",
+        });
     }
   },
 );
 
 // ============================================================================
-// RECEIPT FUNCTIONS
+// RECEIPT HELPERS
 // ============================================================================
 
 function extractMoney(
@@ -551,7 +705,8 @@ function extractMoney(
   ];
 
   if (
-    matches.length === 0
+    matches.length ===
+    0
   ) {
     return null;
   }
@@ -665,7 +820,9 @@ function parseReceipt(
     const line of lines
   ) {
     if (
-      ignored.test(line)
+      ignored.test(
+        line,
+      )
     ) {
       continue;
     }
@@ -720,6 +877,11 @@ app.post(
 
   async (req, res) => {
     try {
+      logPaidResource(
+        req,
+        "$0.05",
+      );
+
       const { text } =
         req.body || {};
 
@@ -728,25 +890,29 @@ app.post(
         typeof text !==
           "string"
       ) {
-        return res.status(400).json({
-          error:
-            "Please provide receipt text.",
+        return res
+          .status(400)
+          .json({
+            error:
+              "Please provide receipt text.",
 
-          example: {
-            text:
-              "Coffee 4.50\nSandwich 8.99\nTax 1.08\nTotal 14.57",
-          },
-        });
+            example: {
+              text:
+                "Coffee 4.50\nSandwich 8.99\nTax 1.08\nTotal 14.57",
+            },
+          });
       }
 
       if (
         text.length >
         50000
       ) {
-        return res.status(400).json({
-          error:
-            "Receipt text is too large.",
-        });
+        return res
+          .status(400)
+          .json({
+            error:
+              "Receipt text is too large.",
+          });
       }
 
       const parsed =
@@ -755,13 +921,17 @@ app.post(
         );
 
       return res.json({
-        status: "success",
+        status:
+          "success",
 
         payment:
           "verified",
 
         network:
           NETWORK,
+
+        currency:
+          "USDC",
 
         parsedData:
           parsed,
@@ -772,10 +942,12 @@ app.post(
         error.message,
       );
 
-      return res.status(500).json({
-        error:
-          "Failed to parse receipt.",
-      });
+      return res
+        .status(500)
+        .json({
+          error:
+            "Failed to parse receipt.",
+        });
     }
   },
 );
@@ -806,7 +978,7 @@ app.use(
 );
 
 // ============================================================================
-// GLOBAL ERROR HANDLER
+// ERROR HANDLER
 // ============================================================================
 
 app.use(
@@ -852,7 +1024,7 @@ app.listen(
     );
 
     console.log(
-      "🚀 x402 Trends Server is ONLINE",
+      "🚀 x402 Trends Server ONLINE",
     );
 
     console.log(
@@ -860,15 +1032,7 @@ app.listen(
     );
 
     console.log(
-      `Host: ${HOST}`,
-    );
-
-    console.log(
-      `Port: ${PORT}`,
-    );
-
-    console.log(
-      "Mode: TESTNET",
+      "Mode: PRODUCTION",
     );
 
     console.log(
@@ -876,46 +1040,36 @@ app.listen(
     );
 
     console.log(
-      `Facilitator: ${FACILITATOR_URL}`,
+      "Network Name: Base Mainnet",
     );
 
     console.log(
-      `Pay-to wallet: ${PAY_TO}`,
+      "Currency: REAL USDC",
+    );
+
+    console.log(
+      `Receiving Wallet: ${PAY_TO}`,
+    );
+
+    console.log(
+      "Facilitator: Coinbase CDP",
     );
 
     console.log("");
-    console.log(
-      "Free endpoints:",
-    );
-
-    console.log(
-      "  GET  /",
-    );
-
-    console.log(
-      "  GET  /health",
-    );
-
-    console.log(
-      "  GET  /openapi.json",
-    );
-
-    console.log("");
-
     console.log(
       "Paid endpoints:",
     );
 
     console.log(
-      "  GET  /api/trends          $0.02",
+      "GET  /api/trends          $0.02 USDC",
     );
 
     console.log(
-      "  POST /api/scrape          $0.005",
+      "POST /api/scrape          $0.005 USDC",
     );
 
     console.log(
-      "  POST /api/parse-receipt   $0.05",
+      "POST /api/parse-receipt   $0.05 USDC",
     );
 
     console.log(
@@ -923,11 +1077,7 @@ app.listen(
     );
 
     console.log(
-      "✅ TESTNET facilitator configured.",
-    );
-
-    console.log(
-      "✅ No Coinbase credentials required.",
+      "⚠️ REAL MONEY MODE ENABLED",
     );
 
     console.log(
