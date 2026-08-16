@@ -10,9 +10,14 @@ import { x402ResourceServer } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { createCdpFacilitatorClient } from "@coinbase/cdp-sdk/x402";
 
+import {
+  declareDiscoveryExtension,
+  bazaarResourceServerExtension,
+} from "@x402/extensions/bazaar";
+
 // ============================================================================
 // X402 TRENDS SERVER
-// PRODUCTION - BASE MAINNET
+// PRODUCTION - BASE MAINNET + BAZAAR DISCOVERY
 // ============================================================================
 
 const app = express();
@@ -20,15 +25,12 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const HOST = "0.0.0.0";
 
-// Base Mainnet
 const NETWORK = "eip155:8453";
 
-// Your receiving wallet comes from Render.
-// Do NOT put a private key here.
 const PAY_TO = process.env.X402_PAY_TO;
 
 // ============================================================================
-// CHECK REQUIRED RENDER ENVIRONMENT VARIABLES
+// REQUIRED ENVIRONMENT VARIABLES
 // ============================================================================
 
 if (
@@ -67,18 +69,18 @@ app.disable("x-powered-by");
 app.use(
   express.json({
     limit: "1mb",
-  }),
+  })
 );
 
 // ============================================================================
-// FREE HOME PAGE
+// FREE HOME ENDPOINT
 // ============================================================================
 
 app.get("/", (_req, res) => {
   res.json({
     name: "x402 Trends Server",
 
-    version: "2.0.0",
+    version: "2.1.0",
 
     status: "online",
 
@@ -92,6 +94,8 @@ app.get("/", (_req, res) => {
 
     paymentProtocol: "x402",
 
+    bazaarDiscovery: true,
+
     receivingWallet: PAY_TO,
 
     endpoints: {
@@ -99,12 +103,14 @@ app.get("/", (_req, res) => {
 
       openapi: "/openapi.json",
 
-      trends: "/api/trends",
+      paid: {
+        trends: "/api/trends",
 
-      scrape: "/api/scrape",
+        scrape: "/api/scrape",
 
-      parseReceipt:
-        "/api/parse-receipt",
+        parseReceipt:
+          "/api/parse-receipt",
+      },
     },
 
     pricing: {
@@ -118,7 +124,7 @@ app.get("/", (_req, res) => {
 });
 
 // ============================================================================
-// FREE HEALTH CHECK
+// FREE HEALTH ENDPOINT
 // ============================================================================
 
 app.get("/health", (_req, res) => {
@@ -128,7 +134,7 @@ app.get("/health", (_req, res) => {
     service:
       "x402-trends-server",
 
-    version: "2.0.0",
+    version: "2.1.0",
 
     mode: "PRODUCTION",
 
@@ -138,6 +144,8 @@ app.get("/health", (_req, res) => {
       "Base Mainnet",
 
     currency: "USDC",
+
+    bazaarDiscovery: true,
 
     timestamp:
       new Date().toISOString(),
@@ -187,13 +195,6 @@ app.get(
 
 // ============================================================================
 // COINBASE CDP FACILITATOR
-//
-// This automatically reads:
-//
-// CDP_API_KEY_ID
-// CDP_API_KEY_SECRET
-//
-// from Render.
 // ============================================================================
 
 const facilitatorClient =
@@ -201,20 +202,26 @@ const facilitatorClient =
 
 // ============================================================================
 // X402 RESOURCE SERVER
+//
+// Register:
+// 1. Base Mainnet exact EVM payments
+// 2. Bazaar discovery extension
 // ============================================================================
 
 const resourceServer =
   new x402ResourceServer(
     facilitatorClient
-  ).register(
-    NETWORK,
-    new ExactEvmScheme()
-  );
+  )
+    .register(
+      NETWORK,
+      new ExactEvmScheme()
+    )
+    .registerExtension(
+      bazaarResourceServerExtension
+    );
 
 // ============================================================================
-// PAYMENT LOGGER
-//
-// THIS RUNS ONLY AFTER PAYMENT SUCCESSFULLY SETTLES.
+// PAYMENT LOGGING
 // ============================================================================
 
 resourceServer.onAfterSettle(
@@ -227,12 +234,6 @@ resourceServer.onAfterSettle(
         requirements?.amount ||
           ""
       );
-
-    // USDC has 6 decimal places.
-    //
-    // $0.005 = 5,000
-    // $0.02  = 20,000
-    // $0.05  = 50,000
 
     const purchasedByAmount = {
       "5000":
@@ -298,17 +299,10 @@ resourceServer.onAfterSettle(
     );
 
     console.log(
-      `Amount (USDC base units): ${
+      `Amount: ${
         amount ||
         "unknown"
-      }`
-    );
-
-    console.log(
-      `Asset: ${
-        requirements?.asset ||
-        "network default USDC"
-      }`
+      } USDC base units`
     );
 
     console.log(
@@ -326,12 +320,408 @@ resourceServer.onAfterSettle(
 );
 
 // ============================================================================
-// X402 PAID ROUTES
+// BAZAAR DISCOVERY METADATA
+// ============================================================================
+
+const trendsDiscovery =
+  declareDiscoveryExtension({
+    input: {},
+
+    inputSchema: {
+      type: "object",
+
+      properties: {},
+
+      required: [],
+    },
+
+    output: {
+      example: {
+        status: "success",
+
+        payment: "verified",
+
+        network:
+          "eip155:8453",
+
+        currency: "USDC",
+
+        source:
+          "Spaceflight News API",
+
+        count: 5,
+
+        retrievedAt:
+          "2026-08-16T01:00:00.000Z",
+
+        data: [
+          {
+            id: 12345,
+
+            title:
+              "Example spaceflight news headline",
+
+            summary:
+              "Summary of the latest spaceflight development.",
+
+            url:
+              "https://example.com/article",
+
+            imageUrl:
+              "https://example.com/image.jpg",
+
+            newsSite:
+              "Example News",
+
+            publishedAt:
+              "2026-08-16T00:30:00Z",
+          },
+        ],
+      },
+
+      schema: {
+        type: "object",
+
+        properties: {
+          status: {
+            type: "string",
+          },
+
+          payment: {
+            type: "string",
+          },
+
+          network: {
+            type: "string",
+          },
+
+          currency: {
+            type: "string",
+          },
+
+          source: {
+            type: "string",
+          },
+
+          count: {
+            type: "integer",
+          },
+
+          retrievedAt: {
+            type: "string",
+          },
+
+          data: {
+            type: "array",
+
+            items: {
+              type: "object",
+
+              properties: {
+                id: {},
+
+                title: {
+                  type: "string",
+                },
+
+                summary: {
+                  type: [
+                    "string",
+                    "null",
+                  ],
+                },
+
+                url: {
+                  type: "string",
+                },
+
+                imageUrl: {
+                  type: [
+                    "string",
+                    "null",
+                  ],
+                },
+
+                newsSite: {
+                  type: [
+                    "string",
+                    "null",
+                  ],
+                },
+
+                publishedAt: {
+                  type: [
+                    "string",
+                    "null",
+                  ],
+                },
+              },
+            },
+          },
+        },
+
+        required: [
+          "status",
+          "count",
+          "data",
+        ],
+      },
+    },
+  });
+
+const scrapeDiscovery =
+  declareDiscoveryExtension({
+    bodyType: "json",
+
+    input: {
+      url:
+        "https://example.com",
+    },
+
+    inputSchema: {
+      type: "object",
+
+      properties: {
+        url: {
+          type: "string",
+
+          format: "uri",
+
+          description:
+            "Public HTTP or HTTPS webpage to fetch and extract readable text from.",
+        },
+      },
+
+      required: [
+        "url",
+      ],
+
+      additionalProperties:
+        false,
+    },
+
+    output: {
+      example: {
+        status: "success",
+
+        payment: "verified",
+
+        network:
+          "eip155:8453",
+
+        currency: "USDC",
+
+        urlRequested:
+          "https://example.com/",
+
+        charactersAvailable:
+          1256,
+
+        truncated: false,
+
+        extractedText:
+          "Example Domain This domain is for use in illustrative examples...",
+      },
+
+      schema: {
+        type: "object",
+
+        properties: {
+          status: {
+            type: "string",
+          },
+
+          payment: {
+            type: "string",
+          },
+
+          network: {
+            type: "string",
+          },
+
+          currency: {
+            type: "string",
+          },
+
+          urlRequested: {
+            type: "string",
+          },
+
+          charactersAvailable:
+            {
+              type: "integer",
+            },
+
+          truncated: {
+            type: "boolean",
+          },
+
+          extractedText: {
+            type: "string",
+          },
+        },
+
+        required: [
+          "status",
+          "urlRequested",
+          "extractedText",
+        ],
+      },
+    },
+  });
+
+const receiptDiscovery =
+  declareDiscoveryExtension({
+    bodyType: "json",
+
+    input: {
+      text:
+        "Coffee 4.50\nSandwich 8.99\nTax 1.08\nTotal 14.57",
+    },
+
+    inputSchema: {
+      type: "object",
+
+      properties: {
+        text: {
+          type: "string",
+
+          description:
+            "Raw receipt text containing items, prices, tax, subtotal or total values.",
+        },
+      },
+
+      required: [
+        "text",
+      ],
+
+      additionalProperties:
+        false,
+    },
+
+    output: {
+      example: {
+        status: "success",
+
+        payment: "verified",
+
+        network:
+          "eip155:8453",
+
+        currency: "USDC",
+
+        parsedData: {
+          items: [
+            {
+              name: "Coffee",
+
+              amount: 4.5,
+            },
+
+            {
+              name:
+                "Sandwich",
+
+              amount: 8.99,
+            },
+          ],
+
+          subtotal: 13.49,
+
+          tax: 1.08,
+
+          total: 14.57,
+
+          linesDetected: 4,
+        },
+      },
+
+      schema: {
+        type: "object",
+
+        properties: {
+          status: {
+            type: "string",
+          },
+
+          payment: {
+            type: "string",
+          },
+
+          network: {
+            type: "string",
+          },
+
+          currency: {
+            type: "string",
+          },
+
+          parsedData: {
+            type: "object",
+
+            properties: {
+              items: {
+                type: "array",
+
+                items: {
+                  type: "object",
+
+                  properties: {
+                    name: {
+                      type: "string",
+                    },
+
+                    amount: {
+                      type: "number",
+                    },
+                  },
+                },
+              },
+
+              subtotal: {
+                type: [
+                  "number",
+                  "null",
+                ],
+              },
+
+              tax: {
+                type: [
+                  "number",
+                  "null",
+                ],
+              },
+
+              total: {
+                type: [
+                  "number",
+                  "null",
+                ],
+              },
+
+              linesDetected:
+                {
+                  type: "integer",
+                },
+            },
+          },
+        },
+
+        required: [
+          "status",
+          "parsedData",
+        ],
+      },
+    },
+  });
+
+// ============================================================================
+// X402 ROUTES + BAZAAR
 // ============================================================================
 
 const routesConfig = {
   // --------------------------------------------------------------------------
-  // $0.02 - Trends
+  // TRENDS
   // --------------------------------------------------------------------------
 
   "GET /api/trends": {
@@ -348,14 +738,18 @@ const routesConfig = {
     ],
 
     description:
-      "Returns the five newest spaceflight news articles.",
+      "Get the five newest spaceflight news stories with titles, summaries, sources, article URLs, images and publication times. Use this endpoint when an agent needs current space industry news involving launches, NASA, SpaceX, Blue Origin, satellites or other spaceflight developments.",
 
     mimeType:
       "application/json",
+
+    extensions: {
+      ...trendsDiscovery,
+    },
   },
 
   // --------------------------------------------------------------------------
-  // $0.005 - Web scraper
+  // WEB SCRAPER
   // --------------------------------------------------------------------------
 
   "POST /api/scrape": {
@@ -372,14 +766,18 @@ const routesConfig = {
     ],
 
     description:
-      "Fetches a public webpage and returns cleaned readable text.",
+      "Fetch a public HTTP or HTTPS webpage and return up to 5,000 characters of cleaned readable text. Use this when an agent needs the textual contents of a webpage for research, summarization, extraction or analysis.",
 
     mimeType:
       "application/json",
+
+    extensions: {
+      ...scrapeDiscovery,
+    },
   },
 
   // --------------------------------------------------------------------------
-  // $0.05 - Receipt parser
+  // RECEIPT PARSER
   // --------------------------------------------------------------------------
 
   "POST /api/parse-receipt": {
@@ -396,15 +794,19 @@ const routesConfig = {
     ],
 
     description:
-      "Parses receipt text and extracts items, subtotal, tax, and total.",
+      "Parse raw receipt text into structured line items, subtotal, sales tax and total. Use this when an agent already has receipt text and needs machine-readable purchase information. This endpoint does not perform image OCR.",
 
     mimeType:
       "application/json",
+
+    extensions: {
+      ...receiptDiscovery,
+    },
   },
 };
 
 // ============================================================================
-// TURN ON THE X402 PAYWALL
+// ENABLE X402
 // ============================================================================
 
 app.use(
@@ -666,7 +1068,7 @@ async function validatePublicUrl(
 
 // ============================================================================
 // TOOL #1
-// PAID SPACE TRENDS
+// SPACE TRENDS
 // ============================================================================
 
 app.get(
@@ -696,7 +1098,7 @@ app.get(
                 "application/json",
 
               "User-Agent":
-                "x402-trends-server/2.0",
+                "x402-trends-server/2.1",
             },
           }
         );
@@ -789,7 +1191,7 @@ app.get(
 
 // ============================================================================
 // TOOL #2
-// PAID WEB SCRAPER
+// WEB SCRAPER
 // ============================================================================
 
 app.post(
@@ -833,10 +1235,6 @@ app.post(
           {
             timeout: 12000,
 
-            // Redirects are disabled
-            // so a public URL cannot
-            // redirect into a private
-            // network address.
             maxRedirects: 0,
 
             responseType:
@@ -847,7 +1245,7 @@ app.post(
 
             headers: {
               "User-Agent":
-                "Mozilla/5.0 (compatible; x402-trends-server/2.0)",
+                "Mozilla/5.0 (compatible; x402-trends-server/2.1)",
 
               Accept:
                 "text/html,text/plain;q=0.9,*/*;q=0.5",
@@ -1035,7 +1433,7 @@ app.post(
 );
 
 // ============================================================================
-// RECEIPT PARSER FUNCTIONS
+// RECEIPT FUNCTIONS
 // ============================================================================
 
 function extractMoney(
@@ -1125,7 +1523,6 @@ function parseReceipt(
   const subtotal =
     findValue(
       lines,
-
       [
         /\bsubtotal\b/i,
 
@@ -1136,7 +1533,6 @@ function parseReceipt(
   const tax =
     findValue(
       lines,
-
       [
         /\btax\b/i,
 
@@ -1147,7 +1543,6 @@ function parseReceipt(
   const total =
     findValue(
       lines,
-
       [
         /\bgrand total\b/i,
 
@@ -1221,7 +1616,7 @@ function parseReceipt(
 
 // ============================================================================
 // TOOL #3
-// PAID RECEIPT PARSER
+// RECEIPT PARSER
 // ============================================================================
 
 app.post(
@@ -1368,7 +1763,7 @@ app.use(
 );
 
 // ============================================================================
-// START SERVER
+// START
 // ============================================================================
 
 app.listen(
@@ -1383,7 +1778,7 @@ app.listen(
     );
 
     console.log(
-      "🚀 x402 Trends Server is ONLINE"
+      "🚀 x402 Trends Server ONLINE"
     );
 
     console.log(
@@ -1391,15 +1786,15 @@ app.listen(
     );
 
     console.log(
-      `Port: ${PORT}`
-    );
-
-    console.log(
       "Mode: PRODUCTION"
     );
 
     console.log(
-      `Network: ${NETWORK} (Base Mainnet)`
+      `Network: ${NETWORK}`
+    );
+
+    console.log(
+      "Network Name: Base Mainnet"
     );
 
     console.log(
@@ -1411,21 +1806,29 @@ app.listen(
     );
 
     console.log(
-      "Facilitator: Coinbase CDP authenticated"
+      "Facilitator: Coinbase CDP"
+    );
+
+    console.log(
+      "Bazaar Discovery: ENABLED"
     );
 
     console.log("");
 
     console.log(
-      "GET  /api/trends        $0.02 USDC"
+      "Paid endpoints:"
     );
 
     console.log(
-      "POST /api/scrape        $0.005 USDC"
+      "GET  /api/trends          $0.02"
     );
 
     console.log(
-      "POST /api/parse-receipt $0.05 USDC"
+      "POST /api/scrape          $0.005"
+    );
+
+    console.log(
+      "POST /api/parse-receipt   $0.05"
     );
 
     console.log(
