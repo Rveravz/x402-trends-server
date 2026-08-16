@@ -2,35 +2,18 @@
   "openapi": "3.1.0",
   "info": {
     "title": "x402 Trends Server",
-    "version": "1.1.0",
-    "description": "Paid x402 API providing current space trends, webpage text extraction, and receipt text parsing."
+    "version": "2.0.0",
+    "description": "Production x402 API on Base Mainnet. Paid endpoints accept real USDC through x402."
   },
-  "tags": [
+  "servers": [
     {
-      "name": "System",
-      "description": "Public server information"
-    },
-    {
-      "name": "Trends",
-      "description": "Current trend and news data"
-    },
-    {
-      "name": "Scraper",
-      "description": "Webpage text extraction"
-    },
-    {
-      "name": "Receipts",
-      "description": "Receipt text parsing"
+      "url": "https://x402-trends-server.onrender.com"
     }
   ],
   "paths": {
     "/": {
       "get": {
-        "tags": [
-          "System"
-        ],
         "summary": "Server information",
-        "operationId": "getServerInfo",
         "responses": {
           "200": {
             "description": "Server information"
@@ -40,11 +23,7 @@
     },
     "/health": {
       "get": {
-        "tags": [
-          "System"
-        ],
         "summary": "Health check",
-        "operationId": "healthCheck",
         "responses": {
           "200": {
             "description": "Server is healthy"
@@ -54,75 +33,38 @@
     },
     "/api/trends": {
       "get": {
-        "tags": [
-          "Trends"
-        ],
         "summary": "Get latest space trends",
-        "description": "Returns the five newest spaceflight news articles. Access requires an x402 payment.",
-        "operationId": "getTrends",
+        "description": "Returns the five newest spaceflight news articles. Requires an x402 payment of $0.02 USDC on Base Mainnet.",
         "responses": {
           "200": {
-            "description": "Latest trends returned successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "status": {
-                      "type": "string"
-                    },
-                    "message": {
-                      "type": "string"
-                    },
-                    "source": {
-                      "type": "string"
-                    },
-                    "count": {
-                      "type": "integer"
-                    },
-                    "retrievedAt": {
-                      "type": "string",
-                      "format": "date-time"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Trend"
-                      }
-                    }
-                  }
-                }
-              }
-            }
+            "description": "Paid request succeeded"
           },
           "402": {
-            "description": "Payment required through x402"
+            "description": "x402 payment required"
           },
           "502": {
-            "description": "Upstream trends provider failed"
+            "description": "Upstream news provider failed"
           }
         }
       }
     },
     "/api/scrape": {
       "post": {
-        "tags": [
-          "Scraper"
-        ],
         "summary": "Extract webpage text",
-        "description": "Fetches a public HTTP or HTTPS webpage and returns cleaned text. Access requires an x402 payment.",
-        "operationId": "scrapeWebpage",
+        "description": "Fetches a public HTTP or HTTPS webpage and returns cleaned text. Requires an x402 payment of $0.005 USDC on Base Mainnet.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ScrapeRequest"
-              },
-              "examples": {
-                "example": {
-                  "value": {
-                    "url": "https://example.com"
+                "type": "object",
+                "required": [
+                  "url"
+                ],
+                "properties": {
+                  "url": {
+                    "type": "string",
+                    "format": "uri"
                   }
                 }
               }
@@ -131,23 +73,16 @@
         },
         "responses": {
           "200": {
-            "description": "Webpage successfully scraped",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ScrapeResponse"
-                }
-              }
-            }
+            "description": "Paid request succeeded"
           },
           "400": {
-            "description": "Invalid URL"
+            "description": "Invalid or blocked URL"
           },
           "402": {
-            "description": "Payment required through x402"
+            "description": "x402 payment required"
           },
           "415": {
-            "description": "Unsupported remote content type"
+            "description": "Unsupported content type"
           },
           "502": {
             "description": "Remote website failed"
@@ -157,23 +92,20 @@
     },
     "/api/parse-receipt": {
       "post": {
-        "tags": [
-          "Receipts"
-        ],
         "summary": "Parse receipt text",
-        "description": "Extracts items, subtotal, tax, and total from raw receipt text. Access requires an x402 payment.",
-        "operationId": "parseReceipt",
+        "description": "Extracts line items, subtotal, tax, and total from raw receipt text. Requires an x402 payment of $0.05 USDC on Base Mainnet.",
         "requestBody": {
           "required": true,
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ReceiptRequest"
-              },
-              "examples": {
-                "example": {
-                  "value": {
-                    "text": "Coffee 4.50\nSandwich 8.99\nTax 1.08\nTotal 14.57"
+                "type": "object",
+                "required": [
+                  "text"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string"
                   }
                 }
               }
@@ -182,179 +114,16 @@
         },
         "responses": {
           "200": {
-            "description": "Receipt parsed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReceiptResponse"
-                }
-              }
-            }
+            "description": "Paid request succeeded"
           },
           "400": {
             "description": "Invalid receipt text"
           },
           "402": {
-            "description": "Payment required through x402"
+            "description": "x402 payment required"
           },
           "500": {
             "description": "Receipt parsing failed"
-          }
-        }
-      }
-    }
-  },
-  "components": {
-    "schemas": {
-      "Trend": {
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": [
-              "integer",
-              "string"
-            ]
-          },
-          "title": {
-            "type": "string"
-          },
-          "summary": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "url": {
-            "type": "string",
-            "format": "uri"
-          },
-          "imageUrl": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "newsSite": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "publishedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "updatedAt": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          }
-        }
-      },
-      "ScrapeRequest": {
-        "type": "object",
-        "required": [
-          "url"
-        ],
-        "properties": {
-          "url": {
-            "type": "string",
-            "format": "uri",
-            "description": "Public HTTP or HTTPS URL"
-          }
-        }
-      },
-      "ScrapeResponse": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "urlRequested": {
-            "type": "string"
-          },
-          "charactersAvailable": {
-            "type": "integer"
-          },
-          "truncated": {
-            "type": "boolean"
-          },
-          "extractedText": {
-            "type": "string"
-          }
-        }
-      },
-      "ReceiptRequest": {
-        "type": "object",
-        "required": [
-          "text"
-        ],
-        "properties": {
-          "text": {
-            "type": "string",
-            "description": "Raw receipt text"
-          }
-        }
-      },
-      "ReceiptItem": {
-        "type": "object",
-        "properties": {
-          "name": {
-            "type": "string"
-          },
-          "amount": {
-            "type": "number"
-          }
-        }
-      },
-      "ReceiptResponse": {
-        "type": "object",
-        "properties": {
-          "status": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "parsedData": {
-            "type": "object",
-            "properties": {
-              "items": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/ReceiptItem"
-                }
-              },
-              "subtotal": {
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "tax": {
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "total": {
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "linesDetected": {
-                "type": "integer"
-              }
-            }
           }
         }
       }
