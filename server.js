@@ -7,50 +7,22 @@ import { paymentMiddleware } from "@x402/express";
 import { x402ResourceServer } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { createCdpFacilitatorClient } from "@coinbase/cdp-sdk/x402";
-
 import {
   declareDiscoveryExtension,
   bazaarResourceServerExtension,
 } from "@x402/extensions/bazaar";
 
-// ============================================================================
-// x402 AGENT DATA API
-// VERSION 2.2.1
-//
-// Base Mainnet
-// Coinbase CDP
-// Bazaar Discovery
-//
-// News improvement:
-// - 5 minute GDELT cache
-// - 6 second request spacing
-// - automatic rate-limit retry
-// ============================================================================
-
 const app = express();
 
 app.set("trust proxy", true);
 app.disable("x-powered-by");
+app.use(express.json({ limit: "1mb" }));
 
-app.use(
-  express.json({
-    limit: "1mb",
-  })
-);
+const VERSION = "2.3.0";
+const PORT = Number(process.env.PORT || 3000);
+const HOST = "0.0.0.0";
 
-const VERSION = "2.2.1";
-
-const PORT =
-  Number(
-    process.env.PORT ||
-      3000
-  );
-
-const HOST =
-  "0.0.0.0";
-
-const NETWORK =
-  "eip155:8453";
+const NETWORK = "eip155:8453";
 
 const PAY_TO =
   process.env.X402_PAY_TO;
@@ -64,9 +36,7 @@ const SERVICE_CONTACT =
 
 if (
   !PAY_TO ||
-  !/^0x[a-fA-F0-9]{40}$/.test(
-    PAY_TO
-  )
+  !/^0x[a-fA-F0-9]{40}$/.test(PAY_TO)
 ) {
   console.error(
     "❌ Missing or invalid X402_PAY_TO."
@@ -76,8 +46,7 @@ if (
 }
 
 if (
-  !process.env
-    .CDP_API_KEY_ID
+  !process.env.CDP_API_KEY_ID
 ) {
   console.error(
     "❌ Missing CDP_API_KEY_ID."
@@ -87,8 +56,7 @@ if (
 }
 
 if (
-  !process.env
-    .CDP_API_KEY_SECRET
+  !process.env.CDP_API_KEY_SECRET
 ) {
   console.error(
     "❌ Missing CDP_API_KEY_SECRET."
@@ -99,9 +67,7 @@ if (
 
 if (
   !SERVICE_CONTACT ||
-  !SERVICE_CONTACT.includes(
-    "@"
-  )
+  !SERVICE_CONTACT.includes("@")
 ) {
   console.error(
     "❌ Missing SERVICE_CONTACT."
@@ -114,7 +80,7 @@ const APP_USER_AGENT =
   `${SERVICE_CONTACT} x402-agent-data-api/${VERSION}`;
 
 // ============================================================================
-// FREE HOME PAGE
+// HOME
 // ============================================================================
 
 app.get(
@@ -219,12 +185,12 @@ app.get(
             "$0.05",
         },
 
-        newsBrief: {
+        cryptoMarket: {
           method:
             "GET",
 
           path:
-            "/api/news-brief",
+            "/api/crypto-market",
 
           price:
             "$0.05",
@@ -283,15 +249,11 @@ app.get(
       bazaarDiscovery:
         true,
 
-      newsCacheEnabled:
-        true,
-
-      gdeltRequestSpacingMs:
-        6000,
+      cryptoMarketSource:
+        "Coinbase Exchange public market data",
 
       timestamp:
-        new Date()
-          .toISOString(),
+        new Date().toISOString(),
     });
   }
 );
@@ -369,10 +331,10 @@ app.get(
           },
         },
 
-        "/api/news-brief": {
+        "/api/crypto-market": {
           get: {
             summary:
-              "Search recent news by topic",
+              "Coinbase crypto market snapshot",
           },
         },
 
@@ -477,8 +439,7 @@ resourceServer.onAfterSettle(
 
     console.log(
       `Time: ${
-        new Date()
-          .toISOString()
+        new Date().toISOString()
       }`
     );
 
@@ -531,41 +492,6 @@ function makeDiscovery({
 // ============================================================================
 // BAZAAR DEFINITIONS
 // ============================================================================
-
-const trendsDiscovery =
-  makeDiscovery({
-    input: {},
-
-    inputSchema: {
-      type:
-        "object",
-
-      properties: {},
-
-      required: [],
-    },
-
-    outputExample: {
-      status:
-        "success",
-
-      source:
-        "Spaceflight News API",
-
-      count:
-        5,
-
-      data: [
-        {
-          title:
-            "Example headline",
-
-          url:
-            "https://example.com/article",
-        },
-      ],
-    },
-  });
 
 const scrapeDiscovery =
   makeDiscovery({
@@ -669,6 +595,44 @@ const exchangeDiscovery =
 
       convertedAmount:
         86,
+    },
+  });
+
+const trendsDiscovery =
+  makeDiscovery({
+    input:
+      {},
+
+    inputSchema: {
+      type:
+        "object",
+
+      properties:
+        {},
+
+      required:
+        [],
+    },
+
+    outputExample: {
+      status:
+        "success",
+
+      source:
+        "Spaceflight News API",
+
+      count:
+        5,
+
+      data: [
+        {
+          title:
+            "Example headline",
+
+          url:
+            "https://example.com/article",
+        },
+      ],
     },
   });
 
@@ -856,17 +820,11 @@ const receiptDiscovery =
     },
   });
 
-const newsDiscovery =
+const cryptoDiscovery =
   makeDiscovery({
     input: {
-      topic:
-        "artificial intelligence",
-
-      limit:
-        10,
-
-      timespan:
-        "24h",
+      pair:
+        "BTC-USD",
     },
 
     inputSchema: {
@@ -874,55 +832,52 @@ const newsDiscovery =
         "object",
 
       properties: {
-        topic: {
+        pair: {
           type:
             "string",
-        },
 
-        limit: {
-          type:
-            "integer",
-
-          minimum:
-            1,
-
-          maximum:
-            25,
-        },
-
-        timespan: {
-          type:
-            "string",
+          description:
+            "Coinbase Exchange product pair such as BTC-USD, ETH-USD, or SOL-USD",
         },
       },
 
-      required: [
-        "topic",
-      ],
+      required:
+        [],
     },
 
     outputExample: {
       status:
         "success",
 
-      topic:
-        "artificial intelligence",
+      source:
+        "Coinbase Exchange",
 
-      count:
-        10,
+      pair:
+        "BTC-USD",
 
-      cached:
-        false,
+      price:
+        "65000.00",
 
-      articles: [
-        {
-          title:
-            "Example article",
+      bestBid:
+        "64999.99",
 
-          url:
-            "https://example.com/news",
-        },
-      ],
+      bestAsk:
+        "65000.01",
+
+      open24h:
+        "64000.00",
+
+      high24h:
+        "66000.00",
+
+      low24h:
+        "63000.00",
+
+      volume24h:
+        "10000.0",
+
+      volume30d:
+        "300000.0",
     },
   });
 
@@ -1033,7 +988,7 @@ const researchDiscovery =
   });
 
 // ============================================================================
-// PAID ROUTE CONFIG
+// PAID ROUTES
 // ============================================================================
 
 const routesConfig = {
@@ -1205,7 +1160,7 @@ const routesConfig = {
     },
   },
 
-  "GET /api/news-brief": {
+  "GET /api/crypto-market": {
     accepts: [
       {
         scheme:
@@ -1223,13 +1178,13 @@ const routesConfig = {
     ],
 
     description:
-      "Search recent global news for a topic and return structured headlines, source domains, URLs, dates, and source counts. Results are cached briefly to reduce upstream rate-limit failures.",
+      "Get a current Coinbase Exchange crypto market snapshot for a trading pair, including last price, best bid and ask, 24-hour open/high/low/volume, and 30-day volume.",
 
     mimeType:
       "application/json",
 
     extensions: {
-      ...newsDiscovery,
+      ...cryptoDiscovery,
     },
   },
 
@@ -1290,10 +1245,6 @@ const routesConfig = {
   },
 };
 
-// ============================================================================
-// ENABLE PAYMENT PROTECTION
-// ============================================================================
-
 app.use(
   paymentMiddleware(
     routesConfig,
@@ -1302,7 +1253,7 @@ app.use(
 );
 
 // ============================================================================
-// WEB SAFETY
+// SSRF / PUBLIC URL SAFETY
 // ============================================================================
 
 function isPrivateIPv4(
@@ -1319,9 +1270,7 @@ function isPrivateIPv4(
 
     parts.some(
       (n) =>
-        !Number.isInteger(
-          n
-        ) ||
+        !Number.isInteger(n) ||
         n < 0 ||
         n > 255
     )
@@ -1393,38 +1342,27 @@ function isPrivateIPv6(
   }
 
   if (
-    value.startsWith(
-      "fc"
-    ) ||
-    value.startsWith(
-      "fd"
-    )
+    value.startsWith("fc") ||
+    value.startsWith("fd")
   ) {
     return true;
   }
 
   if (
-    /^fe[89ab]/.test(
-      value
-    )
+    /^fe[89ab]/.test(value)
   ) {
     return true;
   }
 
   if (
-    value.startsWith(
-      "::ffff:"
-    )
+    value.startsWith("::ffff:")
   ) {
     const ipv4 =
-      value.slice(
-        7
-      );
+      value.slice(7);
 
     if (
-      isIP(
-        ipv4
-      ) === 4
+      isIP(ipv4) ===
+      4
     ) {
       return isPrivateIPv4(
         ipv4
@@ -1439,9 +1377,8 @@ function isPrivateAddress(
   address
 ) {
   if (
-    isIP(
-      address
-    ) === 4
+    isIP(address) ===
+    4
   ) {
     return isPrivateIPv4(
       address
@@ -1449,9 +1386,8 @@ function isPrivateAddress(
   }
 
   if (
-    isIP(
-      address
-    ) === 6
+    isIP(address) ===
+    6
   ) {
     return isPrivateIPv6(
       address
@@ -1500,8 +1436,7 @@ async function validatePublicUrl(
   }
 
   const hostname =
-    parsed.hostname
-      .toLowerCase();
+    parsed.hostname.toLowerCase();
 
   if (
     hostname ===
@@ -1517,9 +1452,7 @@ async function validatePublicUrl(
   }
 
   if (
-    isIP(
-      hostname
-    )
+    isIP(hostname)
   ) {
     if (
       isPrivateAddress(
@@ -1531,8 +1464,7 @@ async function validatePublicUrl(
       );
     }
 
-    return parsed
-      .toString();
+    return parsed.toString();
   }
 
   const addresses =
@@ -1571,8 +1503,7 @@ async function validatePublicUrl(
     }
   }
 
-  return parsed
-    .toString();
+  return parsed.toString();
 }
 
 // ============================================================================
@@ -1582,9 +1513,7 @@ async function validatePublicUrl(
 function decodeHtmlEntities(
   text
 ) {
-  return String(
-    text
-  )
+  return String(text)
     .replace(
       /&nbsp;/gi,
       " "
@@ -1620,9 +1549,7 @@ function htmlToText(
   html
 ) {
   return decodeHtmlEntities(
-    String(
-      html
-    )
+    String(html)
       .replace(
         /<script[\s\S]*?<\/script>/gi,
         " "
@@ -1661,16 +1588,13 @@ function firstMatch(
   regex
 ) {
   const match =
-    String(
-      html
-    ).match(
+    String(html).match(
       regex
     );
 
   return match?.[1]
     ? decodeHtmlEntities(
-        match[1]
-          .trim()
+        match[1].trim()
       )
     : null;
 }
@@ -1680,9 +1604,7 @@ function unique(
 ) {
   return [
     ...new Set(
-      values.filter(
-        Boolean
-      )
+      values.filter(Boolean)
     ),
   ];
 }
@@ -1843,11 +1765,10 @@ function analyzeHtml(
   const headings =
     unique(
       [
-        ...String(
-          html
-        ).matchAll(
-          /<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi
-        ),
+        ...String(html)
+          .matchAll(
+            /<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi
+          ),
       ]
 
         .map(
@@ -1857,9 +1778,7 @@ function analyzeHtml(
             )
         )
 
-        .filter(
-          Boolean
-        )
+        .filter(Boolean)
     ).slice(
       0,
       50
@@ -1868,11 +1787,10 @@ function analyzeHtml(
   const links =
     unique(
       [
-        ...String(
-          html
-        ).matchAll(
-          /<a[^>]+href=["']([^"']+)["'][^>]*>/gi
-        ),
+        ...String(html)
+          .matchAll(
+            /<a[^>]+href=["']([^"']+)["'][^>]*>/gi
+          ),
       ]
 
         .map(
@@ -1883,9 +1801,7 @@ function analyzeHtml(
             )
         )
 
-        .filter(
-          Boolean
-        )
+        .filter(Boolean)
     ).slice(
       0,
       500
@@ -1925,11 +1841,10 @@ function analyzeHtml(
   const emails =
     unique([
       ...[
-        ...String(
-          html
-        ).matchAll(
-          /mailto:([^?"'<>\s]+)/gi
-        ),
+        ...String(html)
+          .matchAll(
+            /mailto:([^?"'<>\s]+)/gi
+          ),
       ].map(
         (m) =>
           m[1]
@@ -1981,10 +1896,9 @@ function analyzeHtml(
     const [
       name,
       domain,
-    ] of
-      Object.entries(
-        socialDomains
-      )
+    ] of Object.entries(
+      socialDomains
+    )
   ) {
     const found =
       links.find(
@@ -2035,10 +1949,7 @@ function analyzeHtml(
             .split(
               /\s+/
             )
-
-            .filter(
-              Boolean
-            )
+            .filter(Boolean)
             .length
         : 0,
 
@@ -2110,7 +2021,7 @@ function buildExternalDomainCounts(
         );
       }
     } catch {
-      // Ignore bad links.
+      // Ignore malformed links.
     }
   }
 
@@ -2148,9 +2059,8 @@ function handlePublicPageError(
   console.error(
     "Public page error:",
 
-    error.response
-      ?.data ||
-    error.message
+    error.response?.data ||
+      error.message
   );
 
   if (
@@ -2199,8 +2109,7 @@ function handlePublicPageError(
           "The remote website rejected or failed the request.",
 
         remoteStatus:
-          error.response
-            .status,
+          error.response.status,
       });
   }
 
@@ -2213,7 +2122,7 @@ function handlePublicPageError(
 }
 
 // ============================================================================
-// TOOL 1 - SCRAPE
+// TOOL 1 - SCRAPER
 // ============================================================================
 
 app.post(
@@ -2223,7 +2132,9 @@ app.post(
     req,
     res
   ) => {
-    const { url } =
+    const {
+      url,
+    } =
       req.body ||
       {};
 
@@ -2468,8 +2379,7 @@ app.get(
           "Frankfurter",
 
         date:
-          response.data
-            ?.date ||
+          response.data?.date ||
           null,
 
         from,
@@ -2490,9 +2400,8 @@ app.get(
       console.error(
         "Exchange-rate error:",
 
-        error.response
-          ?.data ||
-        error.message
+        error.response?.data ||
+          error.message
       );
 
       return res
@@ -2545,11 +2454,9 @@ app.get(
 
       const articles =
         Array.isArray(
-          response.data
-            ?.results
+          response.data?.results
         )
-          ? response.data
-              .results
+          ? response.data.results
           : [];
 
       const data =
@@ -2609,8 +2516,7 @@ app.get(
           data.length,
 
         retrievedAt:
-          new Date()
-            .toISOString(),
+          new Date().toISOString(),
 
         data,
       });
@@ -2620,9 +2526,8 @@ app.get(
       console.error(
         "Trends error:",
 
-        error.response
-          ?.data ||
-        error.message
+        error.response?.data ||
+          error.message
       );
 
       return res
@@ -2825,8 +2730,7 @@ app.get(
         periods,
 
         retrievedAt:
-          new Date()
-            .toISOString(),
+          new Date().toISOString(),
       });
     } catch (
       error
@@ -2834,14 +2738,12 @@ app.get(
       console.error(
         "Weather error:",
 
-        error.response
-          ?.data ||
-        error.message
+        error.response?.data ||
+          error.message
       );
 
       if (
-        error.response
-          ?.status ===
+        error.response?.status ===
         404
       ) {
         return res
@@ -2873,7 +2775,9 @@ app.post(
     req,
     res
   ) => {
-    const { url } =
+    const {
+      url,
+    } =
       req.body ||
       {};
 
@@ -2954,8 +2858,7 @@ app.post(
           analysis.socialLinks,
 
         retrievedAt:
-          new Date()
-            .toISOString(),
+          new Date().toISOString(),
       });
     } catch (
       error
@@ -2976,11 +2879,10 @@ function extractMoney(
   line
 ) {
   const matches = [
-    ...String(
-      line
-    ).matchAll(
-      /(?:\$|USD\s*)?(-?\d{1,7}(?:,\d{3})*(?:\.\d{2}))/gi
-    ),
+    ...String(line)
+      .matchAll(
+        /(?:\$|USD\s*)?(-?\d{1,7}(?:,\d{3})*(?:\.\d{2}))/gi
+      ),
   ];
 
   if (
@@ -3063,9 +2965,7 @@ function parseReceiptText(
           line.trim()
       )
 
-      .filter(
-        Boolean
-      );
+      .filter(Boolean);
 
   const subtotal =
     findReceiptValue(
@@ -3175,7 +3075,9 @@ app.post(
     res
   ) => {
     try {
-      const { text } =
+      const {
+        text,
+      } =
         req.body ||
         {};
 
@@ -3247,252 +3149,19 @@ app.post(
 );
 
 // ============================================================================
-// TOOL 7 - NEWS BRIEF
+// TOOL 7 - CRYPTO MARKET
 //
-// GDELT FIX:
-//
-// - cache results for 5 minutes
-// - never start GDELT calls less than 6 seconds apart
-// - retry automatically when GDELT rate-limits
+// Coinbase Exchange public market data.
+// Results are cached for 10 seconds.
 // ============================================================================
 
-const NEWS_CACHE_TTL_MS =
-  5 *
-  60 *
-  1000;
+const CRYPTO_CACHE_TTL_MS =
+  10_000;
 
-const GDELT_MIN_INTERVAL_MS =
-  6000;
-
-const GDELT_MAX_ATTEMPTS =
-  3;
-
-const newsCache =
+const cryptoCache =
   new Map();
 
-let gdeltLastStartedAt =
-  0;
-
-let gdeltQueue =
-  Promise.resolve();
-
-function sleep(
-  ms
-) {
-  return new Promise(
-    (
-      resolve
-    ) =>
-      setTimeout(
-        resolve,
-        ms
-      )
-  );
-}
-
-function scheduleGdeltRequest(
-  task
-) {
-  const run =
-    gdeltQueue.then(
-      async () => {
-        const elapsed =
-          Date.now() -
-          gdeltLastStartedAt;
-
-        const waitMs =
-          Math.max(
-            0,
-
-            GDELT_MIN_INTERVAL_MS -
-            elapsed
-          );
-
-        if (
-          waitMs >
-          0
-        ) {
-          await sleep(
-            waitMs
-          );
-        }
-
-        gdeltLastStartedAt =
-          Date.now();
-
-        return task();
-      }
-    );
-
-  gdeltQueue =
-    run.catch(
-      () =>
-        undefined
-    );
-
-  return run;
-}
-
-function gdeltErrorText(
-  error
-) {
-  const data =
-    error
-      ?.response
-      ?.data;
-
-  if (
-    typeof data ===
-    "string"
-  ) {
-    return data;
-  }
-
-  if (
-    data &&
-    typeof data ===
-      "object"
-  ) {
-    try {
-      return JSON.stringify(
-        data
-      );
-    } catch {
-      return String(
-        data
-      );
-    }
-  }
-
-  return String(
-    error?.message ||
-    ""
-  );
-}
-
-function isGdeltRateLimitError(
-  error
-) {
-  const status =
-    Number(
-      error
-        ?.response
-        ?.status ||
-      0
-    );
-
-  const text =
-    gdeltErrorText(
-      error
-    ).toLowerCase();
-
-  return (
-    status ===
-      429 ||
-
-    text.includes(
-      "one every 5 seconds"
-    ) ||
-
-    text.includes(
-      "rate limit"
-    ) ||
-
-    text.includes(
-      "too many requests"
-    )
-  );
-}
-
-async function requestGdelt({
-  topic,
-  limit,
-  timespan,
-}) {
-  let lastError;
-
-  for (
-    let attempt = 1;
-
-    attempt <=
-    GDELT_MAX_ATTEMPTS;
-
-    attempt += 1
-  ) {
-    try {
-      return await scheduleGdeltRequest(
-        () =>
-          axios.get(
-            "https://api.gdeltproject.org/api/v2/doc/doc",
-
-            {
-              timeout:
-                20000,
-
-              params: {
-                query:
-                  topic,
-
-                mode:
-                  "artlist",
-
-                format:
-                  "json",
-
-                maxrecords:
-                  limit,
-
-                sort:
-                  "datedesc",
-
-                timespan,
-              },
-
-              headers: {
-                Accept:
-                  "application/json",
-
-                "User-Agent":
-                  `x402-agent-data-api/${VERSION}`,
-              },
-            }
-          )
-      );
-    } catch (
-      error
-    ) {
-      lastError =
-        error;
-
-      if (
-        !isGdeltRateLimitError(
-          error
-        ) ||
-
-        attempt ===
-          GDELT_MAX_ATTEMPTS
-      ) {
-        throw error;
-      }
-
-      const backoffMs =
-        6500 *
-        attempt;
-
-      console.warn(
-        `GDELT rate limited request. Retry ${attempt}/${GDELT_MAX_ATTEMPTS} after ${backoffMs}ms.`
-      );
-
-      await sleep(
-        backoffMs
-      );
-    }
-  }
-
-  throw lastError;
-}
-
-function pruneNewsCache() {
+function pruneCryptoCache() {
   const now =
     Date.now();
 
@@ -3501,13 +3170,13 @@ function pruneNewsCache() {
       key,
       entry,
     ] of
-      newsCache.entries()
+      cryptoCache.entries()
   ) {
     if (
       entry.expiresAt <=
       now
     ) {
-      newsCache.delete(
+      cryptoCache.delete(
         key
       );
     }
@@ -3515,94 +3184,38 @@ function pruneNewsCache() {
 }
 
 app.get(
-  "/api/news-brief",
+  "/api/crypto-market",
 
   async (
     req,
     res
   ) => {
-    const topic =
+    const pair =
       String(
-        req.query.topic ||
-        ""
-      ).trim();
-
-    const limitRaw =
-      req.query.limit ===
-      undefined
-        ? 10
-        : Number(
-            req.query.limit
-          );
-
-    const limit =
-      Math.min(
-        Math.max(
-          Math.floor(
-            limitRaw
-          ),
-          1
-        ),
-        25
-      );
-
-    const timespan =
-      String(
-        req.query.timespan ||
-        "24h"
+        req.query.pair ||
+        "BTC-USD"
       )
         .trim()
-        .toLowerCase();
+        .toUpperCase();
 
     if (
-      !topic ||
-      topic.length <
-        2 ||
-      topic.length >
-        200
-    ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "topic must contain between 2 and 200 characters.",
-        });
-    }
-
-    if (
-      !Number.isFinite(
-        limitRaw
+      !/^[A-Z0-9]{2,12}-[A-Z0-9]{2,12}$/.test(
+        pair
       )
     ) {
       return res
         .status(400)
         .json({
           error:
-            "limit must be a number between 1 and 25.",
+            "pair must be a Coinbase Exchange product such as BTC-USD, ETH-USD, or SOL-USD.",
         });
     }
 
-    if (
-      !/^\d+(min|h|day|days|week|weeks|month|months)$/.test(
-        timespan
-      )
-    ) {
-      return res
-        .status(400)
-        .json({
-          error:
-            "timespan must look like 30min, 24h, 3days, 1week, or 1month.",
-        });
-    }
-
-    pruneNewsCache();
-
-    const cacheKey =
-      `${topic.toLowerCase()}|${limit}|${timespan}`;
+    pruneCryptoCache();
 
     const cached =
-      newsCache.get(
-        cacheKey
+      cryptoCache.get(
+        pair
       );
 
     if (
@@ -3615,87 +3228,58 @@ app.get(
 
         cached:
           true,
-
-        cacheExpiresAt:
-          new Date(
-            cached.expiresAt
-          ).toISOString(),
       });
     }
 
     try {
-      const response =
-        await requestGdelt({
-          topic,
-
-          limit,
-
-          timespan,
-        });
-
-      const articles =
-        Array.isArray(
-          response.data
-            ?.articles
-        )
-          ? response.data
-              .articles
-          : [];
-
-      const data =
-        articles
-          .slice(
-            0,
-            limit
-          )
-
-          .map(
-            (
-              article
-            ) => ({
-              title:
-                article.title ||
-                null,
-
-              url:
-                article.url ||
-                null,
-
-              mobileUrl:
-                article.url_mobile ||
-                null,
-
-              domain:
-                article.domain ||
-                null,
-
-              language:
-                article.language ||
-                null,
-
-              sourceCountry:
-                article.sourcecountry ||
-                null,
-
-              seenDate:
-                article.seendate ||
-                null,
-
-              socialImage:
-                article.socialimage ||
-                null,
-            })
-          );
-
-      const sources =
-        unique(
-          data.map(
-            (
-              item
-            ) =>
-              item.domain
-          )
+      const encodedPair =
+        encodeURIComponent(
+          pair
         );
+
+      const headers = {
+        Accept:
+          "application/json",
+
+        "User-Agent":
+          `x402-agent-data-api/${VERSION}`,
+      };
+
+      const [
+        tickerResponse,
+        statsResponse,
+      ] =
+        await Promise.all([
+          axios.get(
+            `https://api.exchange.coinbase.com/products/${encodedPair}/ticker`,
+
+            {
+              timeout:
+                12000,
+
+              headers,
+            }
+          ),
+
+          axios.get(
+            `https://api.exchange.coinbase.com/products/${encodedPair}/stats`,
+
+            {
+              timeout:
+                12000,
+
+              headers,
+            }
+          ),
+        ]);
+
+      const ticker =
+        tickerResponse.data ||
+        {};
+
+      const stats =
+        statsResponse.data ||
+        {};
 
       const value = {
         status:
@@ -3704,41 +3288,74 @@ app.get(
         payment:
           "verified",
 
-        topic,
-
-        timespan,
-
         source:
-          "GDELT DOC 2.0",
+          "Coinbase Exchange",
 
-        count:
-          data.length,
+        pair,
 
-        sourceCount:
-          sources.length,
+        price:
+          ticker.price ??
+          stats.last ??
+          null,
 
-        sources,
+        lastTradeSize:
+          ticker.size ??
+          null,
+
+        bestBid:
+          ticker.bid ??
+          null,
+
+        bestAsk:
+          ticker.ask ??
+          null,
+
+        open24h:
+          stats.open ??
+          null,
+
+        high24h:
+          stats.high ??
+          null,
+
+        low24h:
+          stats.low ??
+          null,
+
+        last24h:
+          stats.last ??
+          ticker.price ??
+          null,
+
+        volume24h:
+          stats.volume ??
+          ticker.volume ??
+          null,
+
+        volume30d:
+          stats.volume_30day ??
+          null,
+
+        tickerTime:
+          ticker.time ??
+          null,
 
         retrievedAt:
-          new Date()
-            .toISOString(),
-
-        articles:
-          data,
+          new Date().toISOString(),
 
         cached:
           false,
       };
 
-      newsCache.set(
-        cacheKey,
+      cryptoCache.set(
+        pair,
 
         {
           value,
 
           expiresAt:
             Date.now() +
-            NEWS_CACHE_TTL_MS,
+            CRYPTO_CACHE_TTL_MS,
         }
       );
 
@@ -3748,33 +3365,37 @@ app.get(
     } catch (
       error
     ) {
-      const message =
-        gdeltErrorText(
-          error
-        );
-
       console.error(
-        "News brief error:",
+        "Crypto market error:",
 
-        message
+        error.response?.data ||
+          error.message
       );
 
       if (
-        isGdeltRateLimitError(
-          error
-        )
+        error.response?.status ===
+        404
+      ) {
+        return res
+          .status(404)
+          .json({
+            error:
+              `Coinbase Exchange pair ${pair} was not found.`,
+          });
+      }
+
+      if (
+        error.response?.status ===
+        429
       ) {
         return res
           .status(503)
           .json({
             error:
-              "News provider is temporarily rate-limited. Please retry shortly.",
-
-            provider:
-              "GDELT DOC 2.0",
+              "Coinbase market data is temporarily rate-limited. Please retry shortly.",
 
             retryAfterSeconds:
-              15,
+              2,
           });
       }
 
@@ -3782,14 +3403,14 @@ app.get(
         .status(502)
         .json({
           error:
-            "Failed to retrieve topic news from GDELT.",
+            "Failed to retrieve Coinbase crypto market data.",
         });
     }
   }
 );
 
 // ============================================================================
-// TOOL 8 - SEC COMPANY
+// SEC HELPERS
 // ============================================================================
 
 let tickerCache = {
@@ -3821,16 +3442,11 @@ async function getSecTickerRows() {
     Date.now();
 
   if (
-    tickerCache
-      .rows
-      .length &&
-
-    tickerCache
-      .expiresAt >
+    tickerCache.rows.length &&
+    tickerCache.expiresAt >
       now
   ) {
-    return tickerCache
-      .rows;
+    return tickerCache.rows;
   }
 
   const response =
@@ -3994,6 +3610,10 @@ function mapRecentSecFilings(
 
   return result;
 }
+
+// ============================================================================
+// TOOL 8 - SEC COMPANY
+// ============================================================================
 
 app.get(
   "/api/sec-company",
@@ -4171,8 +3791,7 @@ app.get(
           ),
 
         retrievedAt:
-          new Date()
-            .toISOString(),
+          new Date().toISOString(),
       };
 
       companyCache.set(
@@ -4197,14 +3816,12 @@ app.get(
       console.error(
         "SEC company error:",
 
-        error.response
-          ?.data ||
-        error.message
+        error.response?.data ||
+          error.message
       );
 
       if (
-        error.response
-          ?.status ===
+        error.response?.status ===
         404
       ) {
         return res
@@ -4236,7 +3853,9 @@ app.post(
     req,
     res
   ) => {
-    const { url } =
+    const {
+      url,
+    } =
       req.body ||
       {};
 
@@ -4352,8 +3971,7 @@ app.post(
           12000,
 
         retrievedAt:
-          new Date()
-            .toISOString(),
+          new Date().toISOString(),
       });
     } catch (
       error
@@ -4391,7 +4009,7 @@ app.use(
           "GET /api/weather",
           "POST /api/url-analyze",
           "POST /api/parse-receipt",
-          "GET /api/news-brief",
+          "GET /api/crypto-market",
           "GET /api/sec-company",
           "POST /api/website-research",
         ],
@@ -4400,7 +4018,7 @@ app.use(
 );
 
 // ============================================================================
-// GLOBAL ERROR HANDLER
+// ERROR HANDLER
 // ============================================================================
 
 app.use(
@@ -4434,7 +4052,7 @@ app.use(
 );
 
 // ============================================================================
-// START SERVER
+// START
 // ============================================================================
 
 app.listen(
@@ -4489,11 +4107,7 @@ app.listen(
     );
 
     console.log(
-      "GDELT cache: ENABLED (5 minutes)"
-    );
-
-    console.log(
-      "GDELT request spacing: 6 seconds"
+      "Crypto Market Source: Coinbase Exchange"
     );
 
     console.log("");
@@ -4527,7 +4141,7 @@ app.listen(
     );
 
     console.log(
-      "GET  /api/news-brief         $0.05"
+      "GET  /api/crypto-market      $0.05"
     );
 
     console.log(
