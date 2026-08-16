@@ -1,16 +1,17 @@
 {
   "name": "x402-trends-server",
-  "version": "1.3.0",
-  "description": "x402 paid API server for trends, scraping, and receipt parsing",
+  "version": "2.0.0",
+  "description": "Production x402 paid API server on Base Mainnet",
   "main": "server.js",
   "type": "module",
   "scripts": {
     "start": "node server.js"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "dependencies": {
+    "@coinbase/cdp-sdk": "latest",
     "@x402/core": "^2.22.0",
     "@x402/evm": "^2.22.0",
     "@x402/express": "^2.22.0",
