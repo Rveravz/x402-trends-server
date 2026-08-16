@@ -18,61 +18,34 @@ app.set("trust proxy", true);
 app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb" }));
 
-const VERSION = "2.3.0";
+const VERSION = "2.4.0";
 const PORT = Number(process.env.PORT || 3000);
 const HOST = "0.0.0.0";
-
 const NETWORK = "eip155:8453";
-
-const PAY_TO =
-  process.env.X402_PAY_TO;
-
-const SERVICE_CONTACT =
-  process.env.SERVICE_CONTACT;
+const PAY_TO = process.env.X402_PAY_TO;
+const SERVICE_CONTACT = process.env.SERVICE_CONTACT;
 
 // ============================================================================
 // REQUIRED ENVIRONMENT VARIABLES
 // ============================================================================
 
-if (
-  !PAY_TO ||
-  !/^0x[a-fA-F0-9]{40}$/.test(PAY_TO)
-) {
-  console.error(
-    "❌ Missing or invalid X402_PAY_TO."
-  );
-
+if (!PAY_TO || !/^0x[a-fA-F0-9]{40}$/.test(PAY_TO)) {
+  console.error("❌ Missing or invalid X402_PAY_TO.");
   process.exit(1);
 }
 
-if (
-  !process.env.CDP_API_KEY_ID
-) {
-  console.error(
-    "❌ Missing CDP_API_KEY_ID."
-  );
-
+if (!process.env.CDP_API_KEY_ID) {
+  console.error("❌ Missing CDP_API_KEY_ID.");
   process.exit(1);
 }
 
-if (
-  !process.env.CDP_API_KEY_SECRET
-) {
-  console.error(
-    "❌ Missing CDP_API_KEY_SECRET."
-  );
-
+if (!process.env.CDP_API_KEY_SECRET) {
+  console.error("❌ Missing CDP_API_KEY_SECRET.");
   process.exit(1);
 }
 
-if (
-  !SERVICE_CONTACT ||
-  !SERVICE_CONTACT.includes("@")
-) {
-  console.error(
-    "❌ Missing SERVICE_CONTACT."
-  );
-
+if (!SERVICE_CONTACT || !SERVICE_CONTACT.includes("@")) {
+  console.error("❌ Missing SERVICE_CONTACT.");
   process.exit(1);
 }
 
@@ -80,284 +53,183 @@ const APP_USER_AGENT =
   `${SERVICE_CONTACT} x402-agent-data-api/${VERSION}`;
 
 // ============================================================================
-// HOME
+// FREE ROUTES
 // ============================================================================
 
-app.get(
-  "/",
+const paidEndpoints = {
+  scrape: {
+    method: "POST",
+    path: "/api/scrape",
+    price: "$0.005",
+  },
 
-  (_req, res) => {
-    res.json({
-      name:
-        "x402 Agent Data API",
+  exchangeRate: {
+    method: "GET",
+    path: "/api/exchange-rate",
+    price: "$0.01",
+  },
 
-      version:
-        VERSION,
+  trends: {
+    method: "GET",
+    path: "/api/trends",
+    price: "$0.02",
+  },
 
-      status:
-        "online",
+  weather: {
+    method: "GET",
+    path: "/api/weather",
+    price: "$0.02",
+  },
 
-      mode:
-        "PRODUCTION",
+  urlAnalyze: {
+    method: "POST",
+    path: "/api/url-analyze",
+    price: "$0.03",
+  },
 
-      network:
-        NETWORK,
+  parseReceipt: {
+    method: "POST",
+    path: "/api/parse-receipt",
+    price: "$0.05",
+  },
 
-      networkName:
-        "Base Mainnet",
+  cryptoMarket: {
+    method: "GET",
+    path: "/api/crypto-market",
+    price: "$0.05",
+  },
 
-      currency:
-        "USDC",
+  secCompany: {
+    method: "GET",
+    path: "/api/sec-company",
+    price: "$0.05",
+  },
 
-      paymentProtocol:
-        "x402",
+  websiteResearch: {
+    method: "POST",
+    path: "/api/website-research",
+    price: "$0.10",
+  },
+};
 
-      bazaarDiscovery:
-        true,
+app.get("/", (_req, res) => {
+  res.json({
+    name: "x402 Agent Data API",
+    version: VERSION,
+    status: "online",
+    mode: "PRODUCTION",
+    network: NETWORK,
+    networkName: "Base Mainnet",
+    currency: "USDC",
+    paymentProtocol: "x402",
+    bazaarDiscovery: true,
+    receivingWallet: PAY_TO,
+    paidEndpoints,
+  });
+});
 
-      receivingWallet:
-        PAY_TO,
+app.get("/health", (_req, res) => {
+  res.json({
+    status: "ok",
+    service: "x402-agent-data-api",
+    version: VERSION,
+    mode: "PRODUCTION",
+    network: NETWORK,
+    bazaarDiscovery: true,
+    discoveryMetadataVersion: "2.4.0",
+    cryptoMarketSource:
+      "Coinbase Exchange public market data",
+    timestamp: new Date().toISOString(),
+  });
+});
 
-      paidEndpoints: {
-        scrape: {
-          method:
-            "POST",
+app.get("/openapi.json", (_req, res) => {
+  res.json({
+    openapi: "3.1.0",
 
-          path:
-            "/api/scrape",
+    info: {
+      title: "x402 Agent Data API",
+      version: VERSION,
+      description:
+        "Paid AI-agent data tools using x402 on Base Mainnet.",
+    },
 
-          price:
-            "$0.005",
-        },
+    servers: [
+      {
+        url:
+          "https://x402-trends-server.onrender.com",
+      },
+    ],
 
-        exchangeRate: {
-          method:
-            "GET",
-
-          path:
-            "/api/exchange-rate",
-
-          price:
-            "$0.01",
-        },
-
-        trends: {
-          method:
-            "GET",
-
-          path:
-            "/api/trends",
-
-          price:
-            "$0.02",
-        },
-
-        weather: {
-          method:
-            "GET",
-
-          path:
-            "/api/weather",
-
-          price:
-            "$0.02",
-        },
-
-        urlAnalyze: {
-          method:
-            "POST",
-
-          path:
-            "/api/url-analyze",
-
-          price:
-            "$0.03",
-        },
-
-        parseReceipt: {
-          method:
-            "POST",
-
-          path:
-            "/api/parse-receipt",
-
-          price:
-            "$0.05",
-        },
-
-        cryptoMarket: {
-          method:
-            "GET",
-
-          path:
-            "/api/crypto-market",
-
-          price:
-            "$0.05",
-        },
-
-        secCompany: {
-          method:
-            "GET",
-
-          path:
-            "/api/sec-company",
-
-          price:
-            "$0.05",
-        },
-
-        websiteResearch: {
-          method:
-            "POST",
-
-          path:
-            "/api/website-research",
-
-          price:
-            "$0.10",
+    paths: {
+      "/api/scrape": {
+        post: {
+          summary:
+            "Scrape a public webpage into clean readable text",
         },
       },
-    });
-  }
-);
 
-// ============================================================================
-// HEALTH
-// ============================================================================
-
-app.get(
-  "/health",
-
-  (_req, res) => {
-    res.json({
-      status:
-        "ok",
-
-      service:
-        "x402-agent-data-api",
-
-      version:
-        VERSION,
-
-      mode:
-        "PRODUCTION",
-
-      network:
-        NETWORK,
-
-      bazaarDiscovery:
-        true,
-
-      cryptoMarketSource:
-        "Coinbase Exchange public market data",
-
-      timestamp:
-        new Date().toISOString(),
-    });
-  }
-);
-
-// ============================================================================
-// OPENAPI
-// ============================================================================
-
-app.get(
-  "/openapi.json",
-
-  (_req, res) => {
-    res.json({
-      openapi:
-        "3.1.0",
-
-      info: {
-        title:
-          "x402 Agent Data API",
-
-        version:
-          VERSION,
-
-        description:
-          "Paid AI-agent data tools using x402 on Base Mainnet.",
-      },
-
-      servers: [
-        {
-          url:
-            "https://x402-trends-server.onrender.com",
-        },
-      ],
-
-      paths: {
-        "/api/scrape": {
-          post: {
-            summary:
-              "Extract readable webpage text",
-          },
-        },
-
-        "/api/exchange-rate": {
-          get: {
-            summary:
-              "Convert currencies",
-          },
-        },
-
-        "/api/trends": {
-          get: {
-            summary:
-              "Latest spaceflight news",
-          },
-        },
-
-        "/api/weather": {
-          get: {
-            summary:
-              "U.S. weather forecast by coordinates",
-          },
-        },
-
-        "/api/url-analyze": {
-          post: {
-            summary:
-              "Analyze webpage structure and metadata",
-          },
-        },
-
-        "/api/parse-receipt": {
-          post: {
-            summary:
-              "Parse receipt text",
-          },
-        },
-
-        "/api/crypto-market": {
-          get: {
-            summary:
-              "Coinbase crypto market snapshot",
-          },
-        },
-
-        "/api/sec-company": {
-          get: {
-            summary:
-              "SEC company and recent filing data",
-          },
-        },
-
-        "/api/website-research": {
-          post: {
-            summary:
-              "Detailed website research snapshot",
-          },
+      "/api/exchange-rate": {
+        get: {
+          summary:
+            "Convert currencies using current reference rates",
         },
       },
-    });
-  }
-);
+
+      "/api/trends": {
+        get: {
+          summary:
+            "Get the latest spaceflight news stories",
+        },
+      },
+
+      "/api/weather": {
+        get: {
+          summary:
+            "Get a U.S. National Weather Service forecast",
+        },
+      },
+
+      "/api/url-analyze": {
+        post: {
+          summary:
+            "Analyze webpage metadata and structure",
+        },
+      },
+
+      "/api/parse-receipt": {
+        post: {
+          summary:
+            "Parse receipt text into structured purchase data",
+        },
+      },
+
+      "/api/crypto-market": {
+        get: {
+          summary:
+            "Get live Coinbase crypto market data",
+        },
+      },
+
+      "/api/sec-company": {
+        get: {
+          summary:
+            "Get SEC company data and recent filings",
+        },
+      },
+
+      "/api/website-research": {
+        post: {
+          summary:
+            "Create a detailed website research snapshot",
+        },
+      },
+    },
+  });
+});
 
 // ============================================================================
-// X402
+// X402 + BAZAAR
 // ============================================================================
 
 const facilitatorClient =
@@ -371,14 +243,9 @@ const resourceServer =
       NETWORK,
       new ExactEvmScheme()
     )
-
     .registerExtension(
       bazaarResourceServerExtension
     );
-
-// ============================================================================
-// PAYMENT LOGGING
-// ============================================================================
 
 resourceServer.onAfterSettle(
   async ({
@@ -459,6 +326,7 @@ function makeDiscovery({
   input = {},
   inputSchema,
   outputExample,
+  outputSchema,
   bodyType,
 }) {
   return declareDiscoveryExtension({
@@ -478,19 +346,28 @@ function makeDiscovery({
       example:
         outputExample,
 
-      schema: {
-        type:
-          "object",
-
-        additionalProperties:
-          true,
-      },
+      schema:
+        outputSchema,
     },
   });
 }
 
+const successString = {
+  type: "string",
+
+  description:
+    "Request status. Successful calls return success.",
+};
+
+const nullableString = {
+  type: [
+    "string",
+    "null",
+  ],
+};
+
 // ============================================================================
-// BAZAAR DEFINITIONS
+// SCRAPER DISCOVERY
 // ============================================================================
 
 const scrapeDiscovery =
@@ -507,6 +384,9 @@ const scrapeDiscovery =
       type:
         "object",
 
+      additionalProperties:
+        false,
+
       properties: {
         url: {
           type:
@@ -514,28 +394,115 @@ const scrapeDiscovery =
 
           format:
             "uri",
+
+          description:
+            "Public HTTP or HTTPS webpage URL to scrape and convert into clean readable text.",
         },
       },
 
       required: [
         "url",
       ],
-
-      additionalProperties:
-        false,
     },
 
     outputExample: {
       status:
         "success",
 
+      payment:
+        "verified",
+
+      network:
+        "eip155:8453",
+
+      currency:
+        "USDC",
+
       urlRequested:
         "https://example.com/",
 
+      charactersAvailable:
+        125,
+
+      truncated:
+        false,
+
       extractedText:
-        "Example Domain...",
+        "Example Domain This domain is for use in illustrative examples in documents.",
+    },
+
+    outputSchema: {
+      type:
+        "object",
+
+      additionalProperties:
+        false,
+
+      properties: {
+        status:
+          successString,
+
+        payment: {
+          type:
+            "string",
+        },
+
+        network: {
+          type:
+            "string",
+
+          description:
+            "CAIP-2 payment network identifier.",
+        },
+
+        currency: {
+          type:
+            "string",
+        },
+
+        urlRequested: {
+          type:
+            "string",
+
+          format:
+            "uri",
+        },
+
+        charactersAvailable: {
+          type:
+            "integer",
+
+          minimum:
+            0,
+        },
+
+        truncated: {
+          type:
+            "boolean",
+        },
+
+        extractedText: {
+          type:
+            "string",
+
+          description:
+            "Cleaned readable page text, capped at 5,000 characters.",
+        },
+      },
+
+      required: [
+        "status",
+        "urlRequested",
+        "charactersAvailable",
+        "truncated",
+        "extractedText",
+      ],
     },
   });
+
+// ============================================================================
+// EXCHANGE RATE DISCOVERY
+// ============================================================================
 
 const exchangeDiscovery =
   makeDiscovery({
@@ -558,16 +525,28 @@ const exchangeDiscovery =
         from: {
           type:
             "string",
+
+          description:
+            "Three-letter source currency code such as USD, EUR, GBP, or JPY.",
         },
 
         to: {
           type:
             "string",
+
+          description:
+            "Three-letter target currency code such as EUR, USD, GBP, or JPY.",
         },
 
         amount: {
           type:
             "number",
+
+          exclusiveMinimum:
+            0,
+
+          description:
+            "Amount of the source currency to convert. Defaults to 1.",
         },
       },
 
@@ -580,6 +559,15 @@ const exchangeDiscovery =
     outputExample: {
       status:
         "success",
+
+      payment:
+        "verified",
+
+      source:
+        "Frankfurter",
+
+      date:
+        "2026-08-15",
 
       from:
         "USD",
@@ -596,7 +584,81 @@ const exchangeDiscovery =
       convertedAmount:
         86,
     },
+
+    outputSchema: {
+      type:
+        "object",
+
+      additionalProperties:
+        false,
+
+      properties: {
+        status:
+          successString,
+
+        payment: {
+          type:
+            "string",
+        },
+
+        source: {
+          type:
+            "string",
+
+          description:
+            "Exchange-rate data source.",
+        },
+
+        date: {
+          type: [
+            "string",
+            "null",
+          ],
+
+          description:
+            "Rate date in YYYY-MM-DD format when supplied by the provider.",
+        },
+
+        from: {
+          type:
+            "string",
+        },
+
+        to: {
+          type:
+            "string",
+        },
+
+        amount: {
+          type:
+            "number",
+        },
+
+        rate: {
+          type:
+            "number",
+        },
+
+        convertedAmount: {
+          type:
+            "number",
+        },
+      },
+
+      required: [
+        "status",
+        "from",
+        "to",
+        "amount",
+        "rate",
+        "convertedAmount",
+      ],
+    },
   });
+
+// ============================================================================
+// SPACE NEWS DISCOVERY
+// ============================================================================
 
 const trendsDiscovery =
   makeDiscovery({
@@ -618,23 +680,171 @@ const trendsDiscovery =
       status:
         "success",
 
+      payment:
+        "verified",
+
+      network:
+        "eip155:8453",
+
+      currency:
+        "USDC",
+
       source:
         "Spaceflight News API",
 
       count:
         5,
 
+      retrievedAt:
+        "2026-08-15T20:00:00.000Z",
+
       data: [
         {
+          id:
+            12345,
+
           title:
-            "Example headline",
+            "Example spaceflight headline",
+
+          summary:
+            "Example summary of a recent launch or spaceflight story.",
 
           url:
             "https://example.com/article",
+
+          imageUrl:
+            "https://example.com/image.jpg",
+
+          newsSite:
+            "Example News",
+
+          publishedAt:
+            "2026-08-15T19:30:00Z",
+
+          updatedAt:
+            "2026-08-15T19:45:00Z",
         },
       ],
     },
+
+    outputSchema: {
+      type:
+        "object",
+
+      additionalProperties:
+        false,
+
+      properties: {
+        status:
+          successString,
+
+        payment: {
+          type:
+            "string",
+        },
+
+        network: {
+          type:
+            "string",
+        },
+
+        currency: {
+          type:
+            "string",
+        },
+
+        source: {
+          type:
+            "string",
+        },
+
+        count: {
+          type:
+            "integer",
+
+          minimum:
+            0,
+
+          maximum:
+            5,
+        },
+
+        retrievedAt: {
+          type:
+            "string",
+
+          format:
+            "date-time",
+        },
+
+        data: {
+          type:
+            "array",
+
+          items: {
+            type:
+              "object",
+
+            properties: {
+              id: {
+                type: [
+                  "integer",
+                  "string",
+                  "null",
+                ],
+              },
+
+              title:
+                nullableString,
+
+              summary:
+                nullableString,
+
+              url: {
+                type: [
+                  "string",
+                  "null",
+                ],
+              },
+
+              imageUrl: {
+                type: [
+                  "string",
+                  "null",
+                ],
+              },
+
+              newsSite:
+                nullableString,
+
+              publishedAt:
+                nullableString,
+
+              updatedAt:
+                nullableString,
+            },
+
+            required: [
+              "title",
+              "url",
+            ],
+          },
+        },
+      },
+
+      required: [
+        "status",
+        "source",
+        "count",
+        "retrievedAt",
+        "data",
+      ],
+    },
   });
+
+// ============================================================================
+// WEATHER DISCOVERY
+// ============================================================================
 
 const weatherDiscovery =
   makeDiscovery({
@@ -660,6 +870,9 @@ const weatherDiscovery =
 
           maximum:
             90,
+
+          description:
+            "Latitude for the U.S. forecast location, for example 33.68.",
         },
 
         lon: {
@@ -671,6 +884,9 @@ const weatherDiscovery =
 
           maximum:
             180,
+
+          description:
+            "Longitude for the U.S. forecast location, for example -117.18.",
         },
       },
 
@@ -684,12 +900,23 @@ const weatherDiscovery =
       status:
         "success",
 
+      payment:
+        "verified",
+
       source:
         "NOAA National Weather Service",
 
+      coordinates: {
+        lat:
+          33.68,
+
+        lon:
+          -117.18,
+      },
+
       location: {
         city:
-          "Example City",
+          "Menifee",
 
         state:
           "CA",
@@ -700,18 +927,176 @@ const weatherDiscovery =
           name:
             "Tonight",
 
+          startTime:
+            "2026-08-15T18:00:00-07:00",
+
+          endTime:
+            "2026-08-16T06:00:00-07:00",
+
+          isDaytime:
+            false,
+
           temperature:
-            65,
+            68,
 
           temperatureUnit:
             "F",
 
+          windSpeed:
+            "5 mph",
+
+          windDirection:
+            "SW",
+
           shortForecast:
             "Mostly Clear",
+
+          detailedForecast:
+            "Mostly clear overnight with light winds.",
         },
+      ],
+
+      retrievedAt:
+        "2026-08-15T20:00:00.000Z",
+    },
+
+    outputSchema: {
+      type:
+        "object",
+
+      additionalProperties:
+        false,
+
+      properties: {
+        status:
+          successString,
+
+        payment: {
+          type:
+            "string",
+        },
+
+        source: {
+          type:
+            "string",
+        },
+
+        coordinates: {
+          type:
+            "object",
+
+          properties: {
+            lat: {
+              type:
+                "number",
+            },
+
+            lon: {
+              type:
+                "number",
+            },
+          },
+
+          required: [
+            "lat",
+            "lon",
+          ],
+        },
+
+        location: {
+          type:
+            "object",
+
+          properties: {
+            city:
+              nullableString,
+
+            state:
+              nullableString,
+          },
+
+          required: [
+            "city",
+            "state",
+          ],
+        },
+
+        periods: {
+          type:
+            "array",
+
+          description:
+            "Up to 10 National Weather Service forecast periods.",
+
+          items: {
+            type:
+              "object",
+
+            properties: {
+              name:
+                nullableString,
+
+              startTime:
+                nullableString,
+
+              endTime:
+                nullableString,
+
+              isDaytime: {
+                type: [
+                  "boolean",
+                  "null",
+                ],
+              },
+
+              temperature: {
+                type: [
+                  "number",
+                  "null",
+                ],
+              },
+
+              temperatureUnit:
+                nullableString,
+
+              windSpeed:
+                nullableString,
+
+              windDirection:
+                nullableString,
+
+              shortForecast:
+                nullableString,
+
+              detailedForecast:
+                nullableString,
+            },
+          },
+        },
+
+        retrievedAt: {
+          type:
+            "string",
+
+          format:
+            "date-time",
+        },
+      },
+
+      required: [
+        "status",
+        "source",
+        "coordinates",
+        "location",
+        "periods",
+        "retrievedAt",
       ],
     },
   });
+
+// ============================================================================
+// URL ANALYZER DISCOVERY
+// ============================================================================
 
 const urlAnalyzeDiscovery =
   makeDiscovery({
@@ -727,6 +1112,9 @@ const urlAnalyzeDiscovery =
       type:
         "object",
 
+      additionalProperties:
+        false,
+
       properties: {
         url: {
           type:
@@ -734,29 +1122,44 @@ const urlAnalyzeDiscovery =
 
           format:
             "uri",
+
+          description:
+            "Public webpage URL to inspect for SEO metadata, headings, links, email addresses, social links, and basic content statistics.",
         },
       },
 
       required: [
         "url",
       ],
-
-      additionalProperties:
-        false,
     },
 
     outputExample: {
       status:
         "success",
 
+      payment:
+        "verified",
+
       url:
         "https://example.com/",
+
+      contentType:
+        "text/html",
 
       title:
         "Example Domain",
 
+      description:
+        "Example page description",
+
+      canonical:
+        "https://example.com/",
+
+      language:
+        "en",
+
       wordCount:
-        350,
+        125,
 
       headings: [
         "Example Domain",
@@ -764,8 +1167,151 @@ const urlAnalyzeDiscovery =
 
       linkCount:
         4,
+
+      externalLinkCount:
+        1,
+
+      emails: [
+        "hello@example.com",
+      ],
+
+      socialLinks: {
+        github:
+          "https://github.com/example",
+      },
+
+      retrievedAt:
+        "2026-08-15T20:00:00.000Z",
+    },
+
+    outputSchema: {
+      type:
+        "object",
+
+      additionalProperties:
+        false,
+
+      properties: {
+        status:
+          successString,
+
+        payment: {
+          type:
+            "string",
+        },
+
+        url: {
+          type:
+            "string",
+
+          format:
+            "uri",
+        },
+
+        contentType: {
+          type:
+            "string",
+        },
+
+        title:
+          nullableString,
+
+        description:
+          nullableString,
+
+        canonical: {
+          type: [
+            "string",
+            "null",
+          ],
+        },
+
+        language:
+          nullableString,
+
+        wordCount: {
+          type:
+            "integer",
+
+          minimum:
+            0,
+        },
+
+        headings: {
+          type:
+            "array",
+
+          items: {
+            type:
+              "string",
+          },
+        },
+
+        linkCount: {
+          type:
+            "integer",
+
+          minimum:
+            0,
+        },
+
+        externalLinkCount: {
+          type:
+            "integer",
+
+          minimum:
+            0,
+        },
+
+        emails: {
+          type:
+            "array",
+
+          items: {
+            type:
+              "string",
+          },
+        },
+
+        socialLinks: {
+          type:
+            "object",
+
+          additionalProperties: {
+            type:
+              "string",
+          },
+
+          description:
+            "Detected public social profile URLs keyed by platform.",
+        },
+
+        retrievedAt: {
+          type:
+            "string",
+
+          format:
+            "date-time",
+        },
+      },
+
+      required: [
+        "status",
+        "url",
+        "wordCount",
+        "headings",
+        "linkCount",
+        "externalLinkCount",
+        "emails",
+        "socialLinks",
+        "retrievedAt",
+      ],
     },
   });
+
+// ============================================================================
+// RECEIPT DISCOVERY
+// ============================================================================
 
 const receiptDiscovery =
   makeDiscovery({
@@ -781,24 +1327,36 @@ const receiptDiscovery =
       type:
         "object",
 
+      additionalProperties:
+        false,
+
       properties: {
         text: {
           type:
             "string",
+
+          description:
+            "Raw receipt text with one or more lines. Use this after OCR when the source is an image; this endpoint itself does not perform OCR.",
         },
       },
 
       required: [
         "text",
       ],
-
-      additionalProperties:
-        false,
     },
 
     outputExample: {
       status:
         "success",
+
+      payment:
+        "verified",
+
+      network:
+        "eip155:8453",
+
+      currency:
+        "USDC",
 
       parsedData: {
         items: [
@@ -811,14 +1369,128 @@ const receiptDiscovery =
           },
         ],
 
+        subtotal:
+          null,
+
         tax:
           0.36,
 
         total:
           4.86,
+
+        linesDetected:
+          3,
       },
     },
+
+    outputSchema: {
+      type:
+        "object",
+
+      additionalProperties:
+        false,
+
+      properties: {
+        status:
+          successString,
+
+        payment: {
+          type:
+            "string",
+        },
+
+        network: {
+          type:
+            "string",
+        },
+
+        currency: {
+          type:
+            "string",
+        },
+
+        parsedData: {
+          type:
+            "object",
+
+          properties: {
+            items: {
+              type:
+                "array",
+
+              items: {
+                type:
+                  "object",
+
+                properties: {
+                  name: {
+                    type:
+                      "string",
+                  },
+
+                  amount: {
+                    type:
+                      "number",
+                  },
+                },
+
+                required: [
+                  "name",
+                  "amount",
+                ],
+              },
+            },
+
+            subtotal: {
+              type: [
+                "number",
+                "null",
+              ],
+            },
+
+            tax: {
+              type: [
+                "number",
+                "null",
+              ],
+            },
+
+            total: {
+              type: [
+                "number",
+                "null",
+              ],
+            },
+
+            linesDetected: {
+              type:
+                "integer",
+
+              minimum:
+                0,
+            },
+          },
+
+          required: [
+            "items",
+            "subtotal",
+            "tax",
+            "total",
+            "linesDetected",
+          ],
+        },
+      },
+
+      required: [
+        "status",
+        "parsedData",
+      ],
+    },
   });
+
+// ============================================================================
+// CRYPTO MARKET DISCOVERY
+// ============================================================================
 
 const cryptoDiscovery =
   makeDiscovery({
@@ -837,7 +1509,7 @@ const cryptoDiscovery =
             "string",
 
           description:
-            "Coinbase Exchange product pair such as BTC-USD, ETH-USD, or SOL-USD",
+            "Coinbase Exchange trading pair such as BTC-USD, ETH-USD, SOL-USD, or another supported product pair. Defaults to BTC-USD.",
         },
       },
 
@@ -849,6 +1521,9 @@ const cryptoDiscovery =
       status:
         "success",
 
+      payment:
+        "verified",
+
       source:
         "Coinbase Exchange",
 
@@ -856,30 +1531,139 @@ const cryptoDiscovery =
         "BTC-USD",
 
       price:
-        "65000.00",
+        "63058.25",
+
+      lastTradeSize:
+        "0.001",
 
       bestBid:
-        "64999.99",
+        "63058.24",
 
       bestAsk:
-        "65000.01",
+        "63058.25",
 
       open24h:
-        "64000.00",
+        "62000.00",
 
       high24h:
-        "66000.00",
+        "64000.00",
 
       low24h:
-        "63000.00",
+        "61500.00",
+
+      last24h:
+        "63058.25",
 
       volume24h:
         "10000.0",
 
       volume30d:
         "300000.0",
+
+      tickerTime:
+        "2026-08-15T20:00:00.000Z",
+
+      retrievedAt:
+        "2026-08-15T20:00:00.000Z",
+
+      cached:
+        false,
+    },
+
+    outputSchema: {
+      type:
+        "object",
+
+      additionalProperties:
+        false,
+
+      properties: {
+        status:
+          successString,
+
+        payment: {
+          type:
+            "string",
+        },
+
+        source: {
+          type:
+            "string",
+        },
+
+        pair: {
+          type:
+            "string",
+        },
+
+        price:
+          nullableString,
+
+        lastTradeSize:
+          nullableString,
+
+        bestBid:
+          nullableString,
+
+        bestAsk:
+          nullableString,
+
+        open24h:
+          nullableString,
+
+        high24h:
+          nullableString,
+
+        low24h:
+          nullableString,
+
+        last24h:
+          nullableString,
+
+        volume24h:
+          nullableString,
+
+        volume30d:
+          nullableString,
+
+        tickerTime:
+          nullableString,
+
+        retrievedAt: {
+          type:
+            "string",
+
+          format:
+            "date-time",
+        },
+
+        cached: {
+          type:
+            "boolean",
+        },
+      },
+
+      required: [
+        "status",
+        "source",
+        "pair",
+        "price",
+        "bestBid",
+        "bestAsk",
+        "open24h",
+        "high24h",
+        "low24h",
+        "volume24h",
+        "volume30d",
+        "retrievedAt",
+        "cached",
+      ],
     },
   });
+
+// ============================================================================
+// SEC DISCOVERY
+// ============================================================================
 
 const secDiscovery =
   makeDiscovery({
@@ -896,6 +1680,9 @@ const secDiscovery =
         ticker: {
           type:
             "string",
+
+          description:
+            "U.S. public-company ticker symbol such as TSLA, AAPL, MSFT, NVDA, or AMZN.",
         },
       },
 
@@ -908,6 +1695,9 @@ const secDiscovery =
       status:
         "success",
 
+      payment:
+        "verified",
+
       source:
         "U.S. SEC EDGAR",
 
@@ -917,6 +1707,35 @@ const secDiscovery =
       company:
         "Tesla, Inc.",
 
+      cik:
+        "0001318605",
+
+      sic:
+        "3711",
+
+      sicDescription:
+        "Motor Vehicles & Passenger Car Bodies",
+
+      stateOfIncorporation:
+        "TX",
+
+      fiscalYearEnd:
+        "1231",
+
+      exchanges: [
+        "Nasdaq",
+      ],
+
+      tickers: [
+        "TSLA",
+      ],
+
+      website:
+        "https://www.tesla.com",
+
+      investorWebsite:
+        "https://ir.tesla.com",
+
       recentFilings: [
         {
           form:
@@ -924,10 +1743,182 @@ const secDiscovery =
 
           filingDate:
             "2026-07-24",
+
+          reportDate:
+            "2026-06-30",
+
+          acceptanceDateTime:
+            "2026-07-24T16:00:00.000Z",
+
+          accessionNumber:
+            "0000000000-26-000001",
+
+          primaryDocument:
+            "tsla-20260630.htm",
+
+          description:
+            "Quarterly report",
+
+          url:
+            "https://www.sec.gov/Archives/edgar/data/example",
         },
+      ],
+
+      keyFilings:
+        [],
+
+      retrievedAt:
+        "2026-08-15T20:00:00.000Z",
+    },
+
+    outputSchema: {
+      type:
+        "object",
+
+      additionalProperties:
+        false,
+
+      properties: {
+        status:
+          successString,
+
+        payment: {
+          type:
+            "string",
+        },
+
+        source: {
+          type:
+            "string",
+        },
+
+        ticker: {
+          type:
+            "string",
+        },
+
+        company: {
+          type:
+            "string",
+        },
+
+        cik: {
+          type:
+            "string",
+        },
+
+        sic:
+          nullableString,
+
+        sicDescription:
+          nullableString,
+
+        stateOfIncorporation:
+          nullableString,
+
+        fiscalYearEnd:
+          nullableString,
+
+        exchanges: {
+          type:
+            "array",
+
+          items: {
+            type:
+              "string",
+          },
+        },
+
+        tickers: {
+          type:
+            "array",
+
+          items: {
+            type:
+              "string",
+          },
+        },
+
+        website:
+          nullableString,
+
+        investorWebsite:
+          nullableString,
+
+        recentFilings: {
+          type:
+            "array",
+
+          items: {
+            type:
+              "object",
+
+            properties: {
+              form:
+                nullableString,
+
+              filingDate:
+                nullableString,
+
+              reportDate:
+                nullableString,
+
+              acceptanceDateTime:
+                nullableString,
+
+              accessionNumber:
+                nullableString,
+
+              primaryDocument:
+                nullableString,
+
+              description:
+                nullableString,
+
+              url:
+                nullableString,
+            },
+          },
+        },
+
+        keyFilings: {
+          type:
+            "array",
+
+          items: {
+            type:
+              "object",
+
+            additionalProperties:
+              true,
+          },
+        },
+
+        retrievedAt: {
+          type:
+            "string",
+
+          format:
+            "date-time",
+        },
+      },
+
+      required: [
+        "status",
+        "source",
+        "ticker",
+        "company",
+        "cik",
+        "recentFilings",
+        "keyFilings",
+        "retrievedAt",
       ],
     },
   });
+
+// ============================================================================
+// WEBSITE RESEARCH DISCOVERY
+// ============================================================================
 
 const researchDiscovery =
   makeDiscovery({
@@ -943,6 +1934,9 @@ const researchDiscovery =
       type:
         "object",
 
+      additionalProperties:
+        false,
+
       properties: {
         url: {
           type:
@@ -950,20 +1944,29 @@ const researchDiscovery =
 
           format:
             "uri",
+
+          description:
+            "Public website URL to research. Use when an agent needs a fast company/site profile, content excerpt, metadata, contact clues, social links, headings, and external-domain relationships.",
         },
       },
 
       required: [
         "url",
       ],
-
-      additionalProperties:
-        false,
     },
 
     outputExample: {
       status:
         "success",
+
+      payment:
+        "verified",
+
+      network:
+        "eip155:8453",
+
+      currency:
+        "USDC",
 
       url:
         "https://example.com/",
@@ -971,24 +1974,269 @@ const researchDiscovery =
       domain:
         "example.com",
 
+      contentType:
+        "text/html",
+
       profile: {
         title:
           "Example Domain",
 
+        description:
+          "Example website",
+
+        canonical:
+          "https://example.com/",
+
+        language:
+          "en",
+
         wordCount:
-          350,
+          125,
+
+        headings: [
+          "Example Domain",
+        ],
+
+        emails: [
+          "hello@example.com",
+        ],
+
+        socialLinks:
+          {},
+
+        linkCount:
+          4,
+
+        externalLinkCount:
+          1,
       },
 
-      topExternalDomains:
-        [],
+      topExternalDomains: [
+        {
+          domain:
+            "iana.org",
+
+          links:
+            1,
+        },
+      ],
 
       textExcerpt:
-        "Example Domain...",
+        "Example Domain This domain is for use in illustrative examples in documents.",
+
+      textCharactersAvailable:
+        125,
+
+      textTruncated:
+        false,
+
+      retrievedAt:
+        "2026-08-15T20:00:00.000Z",
+    },
+
+    outputSchema: {
+      type:
+        "object",
+
+      additionalProperties:
+        false,
+
+      properties: {
+        status:
+          successString,
+
+        payment: {
+          type:
+            "string",
+        },
+
+        network: {
+          type:
+            "string",
+        },
+
+        currency: {
+          type:
+            "string",
+        },
+
+        url: {
+          type:
+            "string",
+
+          format:
+            "uri",
+        },
+
+        domain: {
+          type:
+            "string",
+        },
+
+        contentType: {
+          type:
+            "string",
+        },
+
+        profile: {
+          type:
+            "object",
+
+          properties: {
+            title:
+              nullableString,
+
+            description:
+              nullableString,
+
+            canonical:
+              nullableString,
+
+            language:
+              nullableString,
+
+            wordCount: {
+              type:
+                "integer",
+
+              minimum:
+                0,
+            },
+
+            headings: {
+              type:
+                "array",
+
+              items: {
+                type:
+                  "string",
+              },
+            },
+
+            emails: {
+              type:
+                "array",
+
+              items: {
+                type:
+                  "string",
+              },
+            },
+
+            socialLinks: {
+              type:
+                "object",
+
+              additionalProperties: {
+                type:
+                  "string",
+              },
+            },
+
+            linkCount: {
+              type:
+                "integer",
+
+              minimum:
+                0,
+            },
+
+            externalLinkCount: {
+              type:
+                "integer",
+
+              minimum:
+                0,
+            },
+          },
+
+          required: [
+            "wordCount",
+            "headings",
+            "emails",
+            "socialLinks",
+            "linkCount",
+            "externalLinkCount",
+          ],
+        },
+
+        topExternalDomains: {
+          type:
+            "array",
+
+          items: {
+            type:
+              "object",
+
+            properties: {
+              domain: {
+                type:
+                  "string",
+              },
+
+              links: {
+                type:
+                  "integer",
+
+                minimum:
+                  1,
+              },
+            },
+
+            required: [
+              "domain",
+              "links",
+            ],
+          },
+        },
+
+        textExcerpt: {
+          type:
+            "string",
+
+          description:
+            "Readable website text excerpt capped at 12,000 characters.",
+        },
+
+        textCharactersAvailable: {
+          type:
+            "integer",
+
+          minimum:
+            0,
+        },
+
+        textTruncated: {
+          type:
+            "boolean",
+        },
+
+        retrievedAt: {
+          type:
+            "string",
+
+          format:
+            "date-time",
+        },
+      },
+
+      required: [
+        "status",
+        "url",
+        "domain",
+        "contentType",
+        "profile",
+        "topExternalDomains",
+        "textExcerpt",
+        "textCharactersAvailable",
+        "textTruncated",
+        "retrievedAt",
+      ],
     },
   });
 
 // ============================================================================
-// PAID ROUTES
+// PAID ROUTE CONFIG
 // ============================================================================
 
 const routesConfig = {
@@ -1010,7 +2258,7 @@ const routesConfig = {
     ],
 
     description:
-      "Fetch a public webpage and return cleaned readable text for agent research, extraction, summarization, or analysis.",
+      "Scrape a public webpage and extract clean readable text. Use this web scraping endpoint when an AI agent needs page content for summarization, research, retrieval, content extraction, indexing, or downstream analysis without parsing raw HTML.",
 
     mimeType:
       "application/json",
@@ -1038,7 +2286,7 @@ const routesConfig = {
     ],
 
     description:
-      "Convert an amount between two currency codes using current reference exchange-rate data.",
+      "Convert money between currency codes using current reference exchange-rate data. Use this endpoint for USD, EUR, GBP, JPY, and other supported fiat conversions when an agent needs a rate, converted amount, or currency comparison.",
 
     mimeType:
       "application/json",
@@ -1066,7 +2314,7 @@ const routesConfig = {
     ],
 
     description:
-      "Get the five newest spaceflight news stories with titles, summaries, sources, article URLs, images, and publication times.",
+      "Get the five newest spaceflight and space-industry news stories with titles, summaries, sources, URLs, images, and publication times. Use this endpoint for current rocket launch, NASA, SpaceX, satellite, mission, or spaceflight news research.",
 
     mimeType:
       "application/json",
@@ -1094,7 +2342,7 @@ const routesConfig = {
     ],
 
     description:
-      "Get a U.S. National Weather Service forecast for latitude and longitude coordinates.",
+      "Get a current U.S. weather forecast from NOAA and the National Weather Service by latitude and longitude. Use this weather API when an agent needs forecast temperature, conditions, wind, day/night periods, or detailed local forecast text for U.S. coordinates.",
 
     mimeType:
       "application/json",
@@ -1122,7 +2370,7 @@ const routesConfig = {
     ],
 
     description:
-      "Analyze a public webpage and return title, description, headings, word count, links, emails, social links, and page metadata.",
+      "Analyze a public webpage for SEO and research metadata. Use this endpoint when an agent needs the page title, meta description, canonical URL, language, headings, word count, links, external-link count, emails, or detected social profiles.",
 
     mimeType:
       "application/json",
@@ -1150,7 +2398,7 @@ const routesConfig = {
     ],
 
     description:
-      "Parse raw receipt text into structured line items, subtotal, tax, and total. This endpoint does not perform image OCR.",
+      "Parse raw receipt text into structured purchase data including line items, subtotal, tax, total, and line count. Use this endpoint after OCR or text extraction when an agent needs machine-readable receipt or expense data. This endpoint does not perform image OCR.",
 
     mimeType:
       "application/json",
@@ -1178,7 +2426,7 @@ const routesConfig = {
     ],
 
     description:
-      "Get a current Coinbase Exchange crypto market snapshot for a trading pair, including last price, best bid and ask, 24-hour open/high/low/volume, and 30-day volume.",
+      "Get live cryptocurrency price and market data from Coinbase Exchange for BTC, ETH, SOL, and other supported trading pairs. Use this crypto market API for last price, best bid and ask, 24-hour open/high/low/volume, and 30-day volume. Defaults to BTC-USD.",
 
     mimeType:
       "application/json",
@@ -1206,7 +2454,7 @@ const routesConfig = {
     ],
 
     description:
-      "Get U.S. SEC EDGAR company information and recent filings for a public-company ticker symbol.",
+      "Get official U.S. SEC EDGAR company information and recent filings by stock ticker. Use this endpoint for company research, 10-K, 10-Q, 8-K and other filing discovery, CIK lookup, exchange information, fiscal year data, and direct SEC filing URLs.",
 
     mimeType:
       "application/json",
@@ -1234,7 +2482,7 @@ const routesConfig = {
     ],
 
     description:
-      "Create a detailed research snapshot of a public website including metadata, headings, text, social links, emails, and external-domain analysis.",
+      "Create a detailed research snapshot of a public website. Use this endpoint when an AI agent needs a fast company or site profile with metadata, headings, readable text, emails, social links, link counts, and the most-linked external domains for due diligence or web research.",
 
     mimeType:
       "application/json",
@@ -1253,7 +2501,7 @@ app.use(
 );
 
 // ============================================================================
-// SSRF / PUBLIC URL SAFETY
+// WEB SAFETY / SSRF PROTECTION
 // ============================================================================
 
 function isPrivateIPv4(
@@ -1270,7 +2518,9 @@ function isPrivateIPv4(
 
     parts.some(
       (n) =>
-        !Number.isInteger(n) ||
+        !Number.isInteger(
+          n
+        ) ||
         n < 0 ||
         n > 255
     )
@@ -1278,7 +2528,10 @@ function isPrivateIPv4(
     return true;
   }
 
-  const [a, b] =
+  const [
+    a,
+    b,
+  ] =
     parts;
 
   if (
@@ -1320,7 +2573,8 @@ function isPrivateIPv4(
   }
 
   if (
-    a >= 224
+    a >=
+    224
   ) {
     return true;
   }
@@ -1335,33 +2589,47 @@ function isPrivateIPv6(
     address.toLowerCase();
 
   if (
-    value === "::1" ||
-    value === "::"
+    value ===
+      "::1" ||
+    value ===
+      "::"
   ) {
     return true;
   }
 
   if (
-    value.startsWith("fc") ||
-    value.startsWith("fd")
+    value.startsWith(
+      "fc"
+    ) ||
+    value.startsWith(
+      "fd"
+    )
   ) {
     return true;
   }
 
   if (
-    /^fe[89ab]/.test(value)
+    /^fe[89ab]/.test(
+      value
+    )
   ) {
     return true;
   }
 
   if (
-    value.startsWith("::ffff:")
+    value.startsWith(
+      "::ffff:"
+    )
   ) {
     const ipv4 =
-      value.slice(7);
+      value.slice(
+        7
+      );
 
     if (
-      isIP(ipv4) ===
+      isIP(
+        ipv4
+      ) ===
       4
     ) {
       return isPrivateIPv4(
@@ -1377,7 +2645,9 @@ function isPrivateAddress(
   address
 ) {
   if (
-    isIP(address) ===
+    isIP(
+      address
+    ) ===
     4
   ) {
     return isPrivateIPv4(
@@ -1386,7 +2656,9 @@ function isPrivateAddress(
   }
 
   if (
-    isIP(address) ===
+    isIP(
+      address
+    ) ===
     6
   ) {
     return isPrivateIPv6(
@@ -1436,7 +2708,8 @@ async function validatePublicUrl(
   }
 
   const hostname =
-    parsed.hostname.toLowerCase();
+    parsed.hostname
+      .toLowerCase();
 
   if (
     hostname ===
@@ -1452,7 +2725,9 @@ async function validatePublicUrl(
   }
 
   if (
-    isIP(hostname)
+    isIP(
+      hostname
+    )
   ) {
     if (
       isPrivateAddress(
@@ -1464,7 +2739,8 @@ async function validatePublicUrl(
       );
     }
 
-    return parsed.toString();
+    return parsed
+      .toString();
   }
 
   const addresses =
@@ -1503,7 +2779,8 @@ async function validatePublicUrl(
     }
   }
 
-  return parsed.toString();
+  return parsed
+    .toString();
 }
 
 // ============================================================================
@@ -1513,7 +2790,9 @@ async function validatePublicUrl(
 function decodeHtmlEntities(
   text
 ) {
-  return String(text)
+  return String(
+    text
+  )
     .replace(
       /&nbsp;/gi,
       " "
@@ -1549,7 +2828,9 @@ function htmlToText(
   html
 ) {
   return decodeHtmlEntities(
-    String(html)
+    String(
+      html
+    )
       .replace(
         /<script[\s\S]*?<\/script>/gi,
         " "
@@ -1588,13 +2869,16 @@ function firstMatch(
   regex
 ) {
   const match =
-    String(html).match(
+    String(
+      html
+    ).match(
       regex
     );
 
   return match?.[1]
     ? decodeHtmlEntities(
-        match[1].trim()
+        match[1]
+          .trim()
       )
     : null;
 }
@@ -1604,7 +2888,9 @@ function unique(
 ) {
   return [
     ...new Set(
-      values.filter(Boolean)
+      values.filter(
+        Boolean
+      )
     ),
   ];
 }
@@ -1622,10 +2908,6 @@ function absoluteUrl(
     return null;
   }
 }
-
-// ============================================================================
-// FETCH PUBLIC PAGE
-// ============================================================================
 
 async function fetchPublicPage(
   rawUrl
@@ -1677,7 +2959,8 @@ async function fetchPublicPage(
         "content-type"
       ] ||
       ""
-    ).toLowerCase();
+    )
+      .toLowerCase();
 
   if (
     !contentType.includes(
@@ -1715,10 +2998,6 @@ async function fetchPublicPage(
   };
 }
 
-// ============================================================================
-// WEBSITE ANALYSIS
-// ============================================================================
-
 function analyzeHtml(
   html,
   baseUrl
@@ -1731,81 +3010,99 @@ function analyzeHtml(
   const title =
     firstMatch(
       html,
+
       /<title[^>]*>([\s\S]*?)<\/title>/i
     );
 
   const description =
     firstMatch(
       html,
+
       /<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["'][^>]*>/i
     ) ||
 
     firstMatch(
       html,
+
       /<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["'][^>]*>/i
     );
 
   const canonicalRaw =
     firstMatch(
       html,
+
       /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["'][^>]*>/i
     ) ||
 
     firstMatch(
       html,
+
       /<link[^>]+href=["']([^"']+)["'][^>]+rel=["']canonical["'][^>]*>/i
     );
 
   const language =
     firstMatch(
       html,
+
       /<html[^>]+lang=["']([^"']+)["'][^>]*>/i
     );
 
   const headings =
     unique(
       [
-        ...String(html)
-          .matchAll(
-            /<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi
-          ),
+        ...String(
+          html
+        ).matchAll(
+          /<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi
+        ),
       ]
 
         .map(
-          (m) =>
+          (
+            m
+          ) =>
             htmlToText(
               m[1]
             )
         )
 
-        .filter(Boolean)
-    ).slice(
-      0,
-      50
-    );
+        .filter(
+          Boolean
+        )
+    )
+      .slice(
+        0,
+        50
+      );
 
   const links =
     unique(
       [
-        ...String(html)
-          .matchAll(
-            /<a[^>]+href=["']([^"']+)["'][^>]*>/gi
-          ),
+        ...String(
+          html
+        ).matchAll(
+          /<a[^>]+href=["']([^"']+)["'][^>]*>/gi
+        ),
       ]
 
         .map(
-          (m) =>
+          (
+            m
+          ) =>
             absoluteUrl(
               m[1],
               baseUrl
             )
         )
 
-        .filter(Boolean)
-    ).slice(
-      0,
-      500
-    );
+        .filter(
+          Boolean
+        )
+    )
+      .slice(
+        0,
+        500
+      );
 
   const baseHost =
     new URL(
@@ -1819,7 +3116,9 @@ function analyzeHtml(
 
   const externalLinks =
     links.filter(
-      (link) => {
+      (
+        link
+      ) => {
         try {
           return (
             new URL(
@@ -1841,12 +3140,15 @@ function analyzeHtml(
   const emails =
     unique([
       ...[
-        ...String(html)
-          .matchAll(
-            /mailto:([^?"'<>\s]+)/gi
-          ),
+        ...String(
+          html
+        ).matchAll(
+          /mailto:([^?"'<>\s]+)/gi
+        ),
       ].map(
-        (m) =>
+        (
+          m
+        ) =>
           m[1]
       ),
 
@@ -1855,13 +3157,16 @@ function analyzeHtml(
           /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi
         ),
       ].map(
-        (m) =>
+        (
+          m
+        ) =>
           m[0]
       ),
-    ]).slice(
-      0,
-      25
-    );
+    ])
+      .slice(
+        0,
+        25
+      );
 
   const socialDomains = {
     linkedin:
@@ -1896,13 +3201,16 @@ function analyzeHtml(
     const [
       name,
       domain,
-    ] of Object.entries(
-      socialDomains
-    )
+    ] of
+      Object.entries(
+        socialDomains
+      )
   ) {
     const found =
       links.find(
-        (link) => {
+        (
+          link
+        ) => {
           try {
             return new URL(
               link
@@ -1949,7 +3257,9 @@ function analyzeHtml(
             .split(
               /\s+/
             )
-            .filter(Boolean)
+            .filter(
+              Boolean
+            )
             .length
         : 0,
 
@@ -2041,7 +3351,10 @@ function buildExternalDomainCounts(
     )
 
     .sort(
-      (a, b) =>
+      (
+        a,
+        b
+      ) =>
         b.links -
         a.links
     )
@@ -2059,8 +3372,9 @@ function handlePublicPageError(
   console.error(
     "Public page error:",
 
-    error.response?.data ||
-      error.message
+    error.response
+      ?.data ||
+    error.message
   );
 
   if (
@@ -2080,7 +3394,9 @@ function handlePublicPageError(
     )
   ) {
     return res
-      .status(400)
+      .status(
+        400
+      )
       .json({
         error:
           error.message,
@@ -2092,7 +3408,9 @@ function handlePublicPageError(
     415
   ) {
     return res
-      .status(415)
+      .status(
+        415
+      )
       .json({
         error:
           error.message,
@@ -2103,18 +3421,23 @@ function handlePublicPageError(
     error.response
   ) {
     return res
-      .status(502)
+      .status(
+        502
+      )
       .json({
         error:
           "The remote website rejected or failed the request.",
 
         remoteStatus:
-          error.response.status,
+          error.response
+            .status,
       });
   }
 
   return res
-    .status(500)
+    .status(
+      500
+    )
     .json({
       error:
         "Failed to process the webpage.",
@@ -2144,7 +3467,9 @@ app.post(
         "string"
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             "Please provide a URL.",
@@ -2258,7 +3583,9 @@ app.get(
       )
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             "from and to must be three-letter currency codes, such as USD and EUR.",
@@ -2277,7 +3604,9 @@ app.get(
         1_000_000_000
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             "amount must be a positive number no greater than 1,000,000,000.",
@@ -2361,7 +3690,9 @@ app.get(
         )
       ) {
         return res
-          .status(502)
+          .status(
+            502
+          )
           .json({
             error:
               "Exchange-rate provider did not return the requested conversion.",
@@ -2379,7 +3710,8 @@ app.get(
           "Frankfurter",
 
         date:
-          response.data?.date ||
+          response.data
+            ?.date ||
           null,
 
         from,
@@ -2400,12 +3732,15 @@ app.get(
       console.error(
         "Exchange-rate error:",
 
-        error.response?.data ||
-          error.message
+        error.response
+          ?.data ||
+        error.message
       );
 
       return res
-        .status(502)
+        .status(
+          502
+        )
         .json({
           error:
             "Failed to retrieve exchange-rate data.",
@@ -2454,9 +3789,11 @@ app.get(
 
       const articles =
         Array.isArray(
-          response.data?.results
+          response.data
+            ?.results
         )
-          ? response.data.results
+          ? response.data
+              .results
           : [];
 
       const data =
@@ -2465,7 +3802,6 @@ app.get(
             0,
             5
           )
-
           .map(
             (
               article
@@ -2516,7 +3852,8 @@ app.get(
           data.length,
 
         retrievedAt:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
 
         data,
       });
@@ -2526,12 +3863,15 @@ app.get(
       console.error(
         "Trends error:",
 
-        error.response?.data ||
-          error.message
+        error.response
+          ?.data ||
+        error.message
       );
 
       return res
-        .status(502)
+        .status(
+          502
+        )
         .json({
           error:
             "Failed to retrieve space news.",
@@ -2566,20 +3906,26 @@ app.get(
         lat
       ) ||
 
-      lat < -90 ||
+      lat <
+        -90 ||
 
-      lat > 90 ||
+      lat >
+        90 ||
 
       !Number.isFinite(
         lon
       ) ||
 
-      lon < -180 ||
+      lon <
+        -180 ||
 
-      lon > 180
+      lon >
+        180
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             "Provide valid lat and lon coordinates.",
@@ -2617,7 +3963,9 @@ app.get(
         !forecastUrl
       ) {
         return res
-          .status(404)
+          .status(
+            404
+          )
           .json({
             error:
               "National Weather Service forecast is unavailable for these coordinates.",
@@ -2730,7 +4078,8 @@ app.get(
         periods,
 
         retrievedAt:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
       });
     } catch (
       error
@@ -2738,16 +4087,20 @@ app.get(
       console.error(
         "Weather error:",
 
-        error.response?.data ||
-          error.message
+        error.response
+          ?.data ||
+        error.message
       );
 
       if (
-        error.response?.status ===
+        error.response
+          ?.status ===
         404
       ) {
         return res
-          .status(404)
+          .status(
+            404
+          )
           .json({
             error:
               "National Weather Service data is unavailable for these coordinates. This endpoint is intended for U.S. NWS coverage.",
@@ -2755,7 +4108,9 @@ app.get(
       }
 
       return res
-        .status(502)
+        .status(
+          502
+        )
         .json({
           error:
             "Failed to retrieve weather data.",
@@ -2787,7 +4142,9 @@ app.post(
         "string"
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             "Please provide a URL.",
@@ -2858,7 +4215,8 @@ app.post(
           analysis.socialLinks,
 
         retrievedAt:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
       });
     } catch (
       error
@@ -2879,10 +4237,11 @@ function extractMoney(
   line
 ) {
   const matches = [
-    ...String(line)
-      .matchAll(
-        /(?:\$|USD\s*)?(-?\d{1,7}(?:,\d{3})*(?:\.\d{2}))/gi
-      ),
+    ...String(
+      line
+    ).matchAll(
+      /(?:\$|USD\s*)?(-?\d{1,7}(?:,\d{3})*(?:\.\d{2}))/gi
+    ),
   ];
 
   if (
@@ -2895,10 +4254,11 @@ function extractMoney(
     matches[
       matches.length -
       1
-    ][1].replace(
-      /,/g,
-      ""
-    );
+    ][1]
+      .replace(
+        /,/g,
+        ""
+      );
 
   const number =
     Number(
@@ -2965,7 +4325,9 @@ function parseReceiptText(
           line.trim()
       )
 
-      .filter(Boolean);
+      .filter(
+        Boolean
+      );
 
   const subtotal =
     findReceiptValue(
@@ -3087,7 +4449,9 @@ app.post(
           "string"
       ) {
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
             error:
               "Please provide receipt text.",
@@ -3104,7 +4468,9 @@ app.post(
         50_000
       ) {
         return res
-          .status(400)
+          .status(
+            400
+          )
           .json({
             error:
               "Receipt text is too large.",
@@ -3139,7 +4505,9 @@ app.post(
       );
 
       return res
-        .status(500)
+        .status(
+          500
+        )
         .json({
           error:
             "Failed to parse receipt.",
@@ -3150,9 +4518,6 @@ app.post(
 
 // ============================================================================
 // TOOL 7 - CRYPTO MARKET
-//
-// Coinbase Exchange public market data.
-// Results are cached for 10 seconds.
 // ============================================================================
 
 const CRYPTO_CACHE_TTL_MS =
@@ -3204,7 +4569,9 @@ app.get(
       )
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             "pair must be a Coinbase Exchange product such as BTC-USD, ETH-USD, or SOL-USD.",
@@ -3341,7 +4708,8 @@ app.get(
           null,
 
         retrievedAt:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
 
         cached:
           false,
@@ -3368,16 +4736,20 @@ app.get(
       console.error(
         "Crypto market error:",
 
-        error.response?.data ||
-          error.message
+        error.response
+          ?.data ||
+        error.message
       );
 
       if (
-        error.response?.status ===
+        error.response
+          ?.status ===
         404
       ) {
         return res
-          .status(404)
+          .status(
+            404
+          )
           .json({
             error:
               `Coinbase Exchange pair ${pair} was not found.`,
@@ -3385,11 +4757,14 @@ app.get(
       }
 
       if (
-        error.response?.status ===
+        error.response
+          ?.status ===
         429
       ) {
         return res
-          .status(503)
+          .status(
+            503
+          )
           .json({
             error:
               "Coinbase market data is temporarily rate-limited. Please retry shortly.",
@@ -3400,7 +4775,9 @@ app.get(
       }
 
       return res
-        .status(502)
+        .status(
+          502
+        )
         .json({
           error:
             "Failed to retrieve Coinbase crypto market data.",
@@ -3442,11 +4819,16 @@ async function getSecTickerRows() {
     Date.now();
 
   if (
-    tickerCache.rows.length &&
-    tickerCache.expiresAt >
+    tickerCache
+      .rows
+      .length &&
+
+    tickerCache
+      .expiresAt >
       now
   ) {
-    return tickerCache.rows;
+    return tickerCache
+      .rows;
   }
 
   const response =
@@ -3466,14 +4848,15 @@ async function getSecTickerRows() {
     Object.values(
       response.data ||
       {}
-    ).filter(
-      (
-        row
-      ) =>
-        row &&
-        row.ticker &&
-        row.cik_str
-    );
+    )
+      .filter(
+        (
+          row
+        ) =>
+          row &&
+          row.ticker &&
+          row.cik_str
+      );
 
   tickerCache = {
     rows,
@@ -3510,10 +4893,11 @@ function buildSecFilingUrl(
   const accessionNoDashes =
     String(
       accessionNumber
-    ).replace(
-      /-/g,
-      ""
-    );
+    )
+      .replace(
+        /-/g,
+        ""
+      );
 
   return (
     `https://www.sec.gov/Archives/edgar/data/` +
@@ -3533,7 +4917,8 @@ function mapRecentSecFilings(
 
   const forms =
     Array.isArray(
-      recent?.form
+      recent
+        ?.form
     )
       ? recent.form
       : [];
@@ -3546,7 +4931,8 @@ function mapRecentSecFilings(
     result.length <
       limit;
 
-    i += 1
+    i +=
+      1
   ) {
     const accessionNumber =
       recent
@@ -3564,7 +4950,9 @@ function mapRecentSecFilings(
 
     result.push({
       form:
-        forms[i] ||
+        forms[
+          i
+        ] ||
         null,
 
       filingDate:
@@ -3636,7 +5024,9 @@ app.get(
       )
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             "Please provide a valid ticker, such as TSLA or AAPL.",
@@ -3669,7 +5059,8 @@ app.get(
           ) =>
             String(
               row.ticker
-            ).toUpperCase() ===
+            )
+              .toUpperCase() ===
             ticker
         );
 
@@ -3677,7 +5068,9 @@ app.get(
         !match
       ) {
         return res
-          .status(404)
+          .status(
+            404
+          )
           .json({
             error:
               `Ticker ${ticker} was not found in the SEC ticker list.`,
@@ -3687,10 +5080,11 @@ app.get(
       const cik =
         String(
           match.cik_str
-        ).padStart(
-          10,
-          "0"
-        );
+        )
+          .padStart(
+            10,
+            "0"
+          );
 
       const response =
         await axios.get(
@@ -3791,7 +5185,8 @@ app.get(
           ),
 
         retrievedAt:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
       };
 
       companyCache.set(
@@ -3816,16 +5211,20 @@ app.get(
       console.error(
         "SEC company error:",
 
-        error.response?.data ||
-          error.message
+        error.response
+          ?.data ||
+        error.message
       );
 
       if (
-        error.response?.status ===
+        error.response
+          ?.status ===
         404
       ) {
         return res
-          .status(404)
+          .status(
+            404
+          )
           .json({
             error:
               `SEC data was not found for ticker ${ticker}.`,
@@ -3833,7 +5232,9 @@ app.get(
       }
 
       return res
-        .status(502)
+        .status(
+          502
+        )
         .json({
           error:
             "Failed to retrieve SEC company data.",
@@ -3865,7 +5266,9 @@ app.post(
         "string"
     ) {
       return res
-        .status(400)
+        .status(
+          400
+        )
         .json({
           error:
             "Please provide a URL.",
@@ -3912,7 +5315,8 @@ app.post(
         domain:
           new URL(
             targetUrl
-          ).hostname,
+          )
+            .hostname,
 
         contentType,
 
@@ -3933,10 +5337,11 @@ app.post(
             analysis.wordCount,
 
           headings:
-            analysis.headings.slice(
-              0,
-              20
-            ),
+            analysis.headings
+              .slice(
+                0,
+                20
+              ),
 
           emails:
             analysis.emails,
@@ -3958,20 +5363,24 @@ app.post(
           ),
 
         textExcerpt:
-          analysis.text.slice(
-            0,
-            12000
-          ),
+          analysis.text
+            .slice(
+              0,
+              12000
+            ),
 
         textCharactersAvailable:
-          analysis.text.length,
+          analysis.text
+            .length,
 
         textTruncated:
-          analysis.text.length >
+          analysis.text
+            .length >
           12000,
 
         retrievedAt:
-          new Date().toISOString(),
+          new Date()
+            .toISOString(),
       });
     } catch (
       error
@@ -3994,7 +5403,9 @@ app.use(
     res
   ) => {
     return res
-      .status(404)
+      .status(
+        404
+      )
       .json({
         error:
           "Endpoint not found.",
@@ -4018,7 +5429,7 @@ app.use(
 );
 
 // ============================================================================
-// ERROR HANDLER
+// GLOBAL ERROR HANDLER
 // ============================================================================
 
 app.use(
@@ -4043,7 +5454,9 @@ app.use(
     }
 
     return res
-      .status(500)
+      .status(
+        500
+      )
       .json({
         error:
           "Internal server error.",
@@ -4104,6 +5517,10 @@ app.listen(
 
     console.log(
       "Bazaar Discovery: ENABLED"
+    );
+
+    console.log(
+      "Bazaar Metadata: ENHANCED"
     );
 
     console.log(
