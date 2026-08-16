@@ -13,17 +13,17 @@ import {
 } from "@x402/extensions/bazaar";
 
 const app = express();
-
 app.set("trust proxy", true);
 app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb" }));
 
-const VERSION = "2.4.0";
+const VERSION = "2.5.0";
 const PORT = Number(process.env.PORT || 3000);
 const HOST = "0.0.0.0";
 const NETWORK = "eip155:8453";
 const PAY_TO = process.env.X402_PAY_TO;
 const SERVICE_CONTACT = process.env.SERVICE_CONTACT;
+const BALLDONTLIE_API_KEY = process.env.BALLDONTLIE_API_KEY;
 
 // ============================================================================
 // REQUIRED ENVIRONMENT VARIABLES
@@ -46,6 +46,11 @@ if (!process.env.CDP_API_KEY_SECRET) {
 
 if (!SERVICE_CONTACT || !SERVICE_CONTACT.includes("@")) {
   console.error("❌ Missing SERVICE_CONTACT.");
+  process.exit(1);
+}
+
+if (!BALLDONTLIE_API_KEY || BALLDONTLIE_API_KEY.length < 8) {
+  console.error("❌ Missing BALLDONTLIE_API_KEY.");
   process.exit(1);
 }
 
@@ -110,123 +115,228 @@ const paidEndpoints = {
     path: "/api/website-research",
     price: "$0.10",
   },
+
+  sportsGameBrief: {
+    method: "GET",
+    path: "/api/sports-game-brief",
+    price: "$0.05",
+  },
 };
 
-app.get("/", (_req, res) => {
-  res.json({
-    name: "x402 Agent Data API",
-    version: VERSION,
-    status: "online",
-    mode: "PRODUCTION",
-    network: NETWORK,
-    networkName: "Base Mainnet",
-    currency: "USDC",
-    paymentProtocol: "x402",
-    bazaarDiscovery: true,
-    receivingWallet: PAY_TO,
-    paidEndpoints,
-  });
-});
+app.get(
+  "/",
 
-app.get("/health", (_req, res) => {
-  res.json({
-    status: "ok",
-    service: "x402-agent-data-api",
-    version: VERSION,
-    mode: "PRODUCTION",
-    network: NETWORK,
-    bazaarDiscovery: true,
-    discoveryMetadataVersion: "2.4.0",
-    cryptoMarketSource:
-      "Coinbase Exchange public market data",
-    timestamp: new Date().toISOString(),
-  });
-});
-
-app.get("/openapi.json", (_req, res) => {
-  res.json({
-    openapi: "3.1.0",
-
-    info: {
-      title: "x402 Agent Data API",
+  (_req, res) => {
+    res.json({
+      name: "x402 Agent Data API",
       version: VERSION,
-      description:
-        "Paid AI-agent data tools using x402 on Base Mainnet.",
-    },
+      status: "online",
+      mode: "PRODUCTION",
+      network: NETWORK,
+      networkName: "Base Mainnet",
+      currency: "USDC",
+      paymentProtocol: "x402",
+      bazaarDiscovery: true,
+      receivingWallet: PAY_TO,
+      sportsProvider: "BALLDONTLIE",
 
-    servers: [
-      {
-        url:
-          "https://x402-trends-server.onrender.com",
+      sportsLeagues: [
+        "NBA",
+        "NFL",
+        "MLB",
+        "EPL",
+      ],
+
+      paidEndpoints,
+    });
+  }
+);
+
+app.get(
+  "/health",
+
+  (_req, res) => {
+    res.json({
+      status: "ok",
+      service: "x402-agent-data-api",
+      version: VERSION,
+      mode: "PRODUCTION",
+      network: NETWORK,
+      bazaarDiscovery: true,
+      discoveryMetadataVersion: VERSION,
+
+      cryptoMarketSource:
+        "Coinbase Exchange public market data",
+
+      sportsProvider:
+        "BALLDONTLIE",
+
+      sportsConfigured:
+        Boolean(BALLDONTLIE_API_KEY),
+
+      sportsLeagues: [
+        "NBA",
+        "NFL",
+        "MLB",
+        "EPL",
+      ],
+
+      timestamp:
+        new Date().toISOString(),
+    });
+  }
+);
+
+app.get(
+  "/openapi.json",
+
+  (_req, res) => {
+    res.json({
+      openapi: "3.1.0",
+
+      info: {
+        title:
+          "x402 Agent Data API",
+
+        version:
+          VERSION,
+
+        description:
+          "Paid AI-agent data tools using x402 on Base Mainnet.",
       },
-    ],
 
-    paths: {
-      "/api/scrape": {
-        post: {
-          summary:
-            "Scrape a public webpage into clean readable text",
+      servers: [
+        {
+          url:
+            "https://x402-trends-server.onrender.com",
+        },
+      ],
+
+      paths: {
+        "/api/scrape": {
+          post: {
+            summary:
+              "Scrape a public webpage into clean readable text",
+          },
+        },
+
+        "/api/exchange-rate": {
+          get: {
+            summary:
+              "Convert currencies using current reference rates",
+          },
+        },
+
+        "/api/trends": {
+          get: {
+            summary:
+              "Get the latest spaceflight news stories",
+          },
+        },
+
+        "/api/weather": {
+          get: {
+            summary:
+              "Get a U.S. National Weather Service forecast",
+          },
+        },
+
+        "/api/url-analyze": {
+          post: {
+            summary:
+              "Analyze webpage metadata and structure",
+          },
+        },
+
+        "/api/parse-receipt": {
+          post: {
+            summary:
+              "Parse receipt text into structured purchase data",
+          },
+        },
+
+        "/api/crypto-market": {
+          get: {
+            summary:
+              "Get live Coinbase crypto market data",
+          },
+        },
+
+        "/api/sec-company": {
+          get: {
+            summary:
+              "Get SEC company data and recent filings",
+          },
+        },
+
+        "/api/website-research": {
+          post: {
+            summary:
+              "Create a detailed website research snapshot",
+          },
+        },
+
+        "/api/sports-game-brief": {
+          get: {
+            summary:
+              "Get normalized NBA, NFL, MLB, or EPL schedules and scores",
+
+            parameters: [
+              {
+                name: "league",
+                in: "query",
+                required: true,
+
+                schema: {
+                  type: "string",
+
+                  enum: [
+                    "NBA",
+                    "NFL",
+                    "MLB",
+                    "EPL",
+                  ],
+                },
+              },
+
+              {
+                name: "date",
+                in: "query",
+                required: false,
+
+                schema: {
+                  type: "string",
+                },
+              },
+
+              {
+                name: "team",
+                in: "query",
+                required: false,
+
+                schema: {
+                  type: "string",
+                },
+              },
+
+              {
+                name: "limit",
+                in: "query",
+                required: false,
+
+                schema: {
+                  type: "integer",
+                  minimum: 1,
+                  maximum: 20,
+                },
+              },
+            ],
+          },
         },
       },
-
-      "/api/exchange-rate": {
-        get: {
-          summary:
-            "Convert currencies using current reference rates",
-        },
-      },
-
-      "/api/trends": {
-        get: {
-          summary:
-            "Get the latest spaceflight news stories",
-        },
-      },
-
-      "/api/weather": {
-        get: {
-          summary:
-            "Get a U.S. National Weather Service forecast",
-        },
-      },
-
-      "/api/url-analyze": {
-        post: {
-          summary:
-            "Analyze webpage metadata and structure",
-        },
-      },
-
-      "/api/parse-receipt": {
-        post: {
-          summary:
-            "Parse receipt text into structured purchase data",
-        },
-      },
-
-      "/api/crypto-market": {
-        get: {
-          summary:
-            "Get live Coinbase crypto market data",
-        },
-      },
-
-      "/api/sec-company": {
-        get: {
-          summary:
-            "Get SEC company data and recent filings",
-        },
-      },
-
-      "/api/website-research": {
-        post: {
-          summary:
-            "Create a detailed website research snapshot",
-        },
-      },
-    },
-  });
-});
+    });
+  }
+);
 
 // ============================================================================
 // X402 + BAZAAR
@@ -243,6 +353,7 @@ const resourceServer =
       NETWORK,
       new ExactEvmScheme()
     )
+
     .registerExtension(
       bazaarResourceServerExtension
     );
@@ -319,8 +430,74 @@ resourceServer.onAfterSettle(
 );
 
 // ============================================================================
-// BAZAAR HELPER
+// JSON SCHEMA HELPERS
 // ============================================================================
+
+const str = {
+  type: "string",
+};
+
+const nullableStr = {
+  type: [
+    "string",
+    "null",
+  ],
+};
+
+const num = {
+  type: "number",
+};
+
+const nullableNum = {
+  type: [
+    "number",
+    "null",
+  ],
+};
+
+const bool = {
+  type: "boolean",
+};
+
+const nullableBool = {
+  type: [
+    "boolean",
+    "null",
+  ],
+};
+
+const integer = {
+  type: "integer",
+};
+
+const nullableInteger = {
+  type: [
+    "integer",
+    "null",
+  ],
+};
+
+function objectSchema(
+  properties,
+  required = [],
+  additionalProperties = false
+) {
+  return {
+    type: "object",
+    properties,
+    required,
+    additionalProperties,
+  };
+}
+
+function arraySchema(
+  items
+) {
+  return {
+    type: "array",
+    items,
+  };
+}
 
 function makeDiscovery({
   input = {},
@@ -352,19 +529,21 @@ function makeDiscovery({
   });
 }
 
-const successString = {
-  type: "string",
+const teamOutputSchema =
+  objectSchema(
+    {
+      name:
+        str,
 
-  description:
-    "Request status. Successful calls return success.",
-};
+      abbreviation:
+        nullableStr,
+    },
 
-const nullableString = {
-  type: [
-    "string",
-    "null",
-  ],
-};
+    [
+      "name",
+      "abbreviation",
+    ]
+  );
 
 // ============================================================================
 // SCRAPER DISCOVERY
@@ -380,30 +559,22 @@ const scrapeDiscovery =
         "https://example.com",
     },
 
-    inputSchema: {
-      type:
-        "object",
+    inputSchema:
+      objectSchema(
+        {
+          url: {
+            type:
+              "string",
 
-      additionalProperties:
-        false,
-
-      properties: {
-        url: {
-          type:
-            "string",
-
-          format:
-            "uri",
-
-          description:
-            "Public HTTP or HTTPS webpage URL to scrape and convert into clean readable text.",
+            description:
+              "Public HTTP or HTTPS webpage URL to scrape and convert into clean readable text.",
+          },
         },
-      },
 
-      required: [
-        "url",
-      ],
-    },
+        [
+          "url",
+        ]
+      ),
 
     outputExample: {
       status:
@@ -413,7 +584,7 @@ const scrapeDiscovery =
         "verified",
 
       network:
-        "eip155:8453",
+        NETWORK,
 
       currency:
         "USDC",
@@ -431,73 +602,42 @@ const scrapeDiscovery =
         "Example Domain This domain is for use in illustrative examples in documents.",
     },
 
-    outputSchema: {
-      type:
-        "object",
+    outputSchema:
+      objectSchema(
+        {
+          status:
+            str,
 
-      additionalProperties:
-        false,
+          payment:
+            str,
 
-      properties: {
-        status:
-          successString,
+          network:
+            str,
 
-        payment: {
-          type:
-            "string",
+          currency:
+            str,
+
+          urlRequested:
+            str,
+
+          charactersAvailable:
+            integer,
+
+          truncated:
+            bool,
+
+          extractedText:
+            str,
         },
 
-        network: {
-          type:
-            "string",
-
-          description:
-            "CAIP-2 payment network identifier.",
-        },
-
-        currency: {
-          type:
-            "string",
-        },
-
-        urlRequested: {
-          type:
-            "string",
-
-          format:
-            "uri",
-        },
-
-        charactersAvailable: {
-          type:
-            "integer",
-
-          minimum:
-            0,
-        },
-
-        truncated: {
-          type:
-            "boolean",
-        },
-
-        extractedText: {
-          type:
-            "string",
-
-          description:
-            "Cleaned readable page text, capped at 5,000 characters.",
-        },
-      },
-
-      required: [
-        "status",
-        "urlRequested",
-        "charactersAvailable",
-        "truncated",
-        "extractedText",
-      ],
-    },
+        [
+          "status",
+          "urlRequested",
+          "charactersAvailable",
+          "truncated",
+          "extractedText",
+        ]
+      ),
   });
 
 // ============================================================================
@@ -517,44 +657,42 @@ const exchangeDiscovery =
         100,
     },
 
-    inputSchema: {
-      type:
-        "object",
+    inputSchema:
+      objectSchema(
+        {
+          from: {
+            type:
+              "string",
 
-      properties: {
-        from: {
-          type:
-            "string",
+            description:
+              "Three-letter source currency code such as USD, EUR, GBP, or JPY.",
+          },
 
-          description:
-            "Three-letter source currency code such as USD, EUR, GBP, or JPY.",
+          to: {
+            type:
+              "string",
+
+            description:
+              "Three-letter target currency code such as EUR, USD, GBP, or JPY.",
+          },
+
+          amount: {
+            type:
+              "number",
+
+            exclusiveMinimum:
+              0,
+
+            description:
+              "Amount of source currency to convert. Defaults to 1.",
+          },
         },
 
-        to: {
-          type:
-            "string",
-
-          description:
-            "Three-letter target currency code such as EUR, USD, GBP, or JPY.",
-        },
-
-        amount: {
-          type:
-            "number",
-
-          exclusiveMinimum:
-            0,
-
-          description:
-            "Amount of the source currency to convert. Defaults to 1.",
-        },
-      },
-
-      required: [
-        "from",
-        "to",
-      ],
-    },
+        [
+          "from",
+          "to",
+        ]
+      ),
 
     outputExample: {
       status:
@@ -585,75 +723,46 @@ const exchangeDiscovery =
         86,
     },
 
-    outputSchema: {
-      type:
-        "object",
+    outputSchema:
+      objectSchema(
+        {
+          status:
+            str,
 
-      additionalProperties:
-        false,
+          payment:
+            str,
 
-      properties: {
-        status:
-          successString,
+          source:
+            str,
 
-        payment: {
-          type:
-            "string",
+          date:
+            nullableStr,
+
+          from:
+            str,
+
+          to:
+            str,
+
+          amount:
+            num,
+
+          rate:
+            num,
+
+          convertedAmount:
+            num,
         },
 
-        source: {
-          type:
-            "string",
-
-          description:
-            "Exchange-rate data source.",
-        },
-
-        date: {
-          type: [
-            "string",
-            "null",
-          ],
-
-          description:
-            "Rate date in YYYY-MM-DD format when supplied by the provider.",
-        },
-
-        from: {
-          type:
-            "string",
-        },
-
-        to: {
-          type:
-            "string",
-        },
-
-        amount: {
-          type:
-            "number",
-        },
-
-        rate: {
-          type:
-            "number",
-        },
-
-        convertedAmount: {
-          type:
-            "number",
-        },
-      },
-
-      required: [
-        "status",
-        "from",
-        "to",
-        "amount",
-        "rate",
-        "convertedAmount",
-      ],
-    },
+        [
+          "status",
+          "from",
+          "to",
+          "amount",
+          "rate",
+          "convertedAmount",
+        ]
+      ),
   });
 
 // ============================================================================
@@ -665,16 +774,11 @@ const trendsDiscovery =
     input:
       {},
 
-    inputSchema: {
-      type:
-        "object",
-
-      properties:
+    inputSchema:
+      objectSchema(
         {},
-
-      required:
-        [],
-    },
+        []
+      ),
 
     outputExample: {
       status:
@@ -684,7 +788,7 @@ const trendsDiscovery =
         "verified",
 
       network:
-        "eip155:8453",
+        NETWORK,
 
       currency:
         "USDC",
@@ -727,119 +831,80 @@ const trendsDiscovery =
       ],
     },
 
-    outputSchema: {
-      type:
-        "object",
+    outputSchema:
+      objectSchema(
+        {
+          status:
+            str,
 
-      additionalProperties:
-        false,
+          payment:
+            str,
 
-      properties: {
-        status:
-          successString,
+          network:
+            str,
 
-        payment: {
-          type:
-            "string",
+          currency:
+            str,
+
+          source:
+            str,
+
+          count:
+            integer,
+
+          retrievedAt:
+            str,
+
+          data:
+            arraySchema(
+              objectSchema(
+                {
+                  id: {
+                    type: [
+                      "integer",
+                      "string",
+                      "null",
+                    ],
+                  },
+
+                  title:
+                    nullableStr,
+
+                  summary:
+                    nullableStr,
+
+                  url:
+                    nullableStr,
+
+                  imageUrl:
+                    nullableStr,
+
+                  newsSite:
+                    nullableStr,
+
+                  publishedAt:
+                    nullableStr,
+
+                  updatedAt:
+                    nullableStr,
+                },
+
+                [
+                  "title",
+                  "url",
+                ]
+              )
+            ),
         },
 
-        network: {
-          type:
-            "string",
-        },
-
-        currency: {
-          type:
-            "string",
-        },
-
-        source: {
-          type:
-            "string",
-        },
-
-        count: {
-          type:
-            "integer",
-
-          minimum:
-            0,
-
-          maximum:
-            5,
-        },
-
-        retrievedAt: {
-          type:
-            "string",
-
-          format:
-            "date-time",
-        },
-
-        data: {
-          type:
-            "array",
-
-          items: {
-            type:
-              "object",
-
-            properties: {
-              id: {
-                type: [
-                  "integer",
-                  "string",
-                  "null",
-                ],
-              },
-
-              title:
-                nullableString,
-
-              summary:
-                nullableString,
-
-              url: {
-                type: [
-                  "string",
-                  "null",
-                ],
-              },
-
-              imageUrl: {
-                type: [
-                  "string",
-                  "null",
-                ],
-              },
-
-              newsSite:
-                nullableString,
-
-              publishedAt:
-                nullableString,
-
-              updatedAt:
-                nullableString,
-            },
-
-            required: [
-              "title",
-              "url",
-            ],
-          },
-        },
-      },
-
-      required: [
-        "status",
-        "source",
-        "count",
-        "retrievedAt",
-        "data",
-      ],
-    },
+        [
+          "status",
+          "source",
+          "count",
+          "retrievedAt",
+          "data",
+        ]
+      ),
   });
 
 // ============================================================================
@@ -856,45 +921,43 @@ const weatherDiscovery =
         -117.18,
     },
 
-    inputSchema: {
-      type:
-        "object",
+    inputSchema:
+      objectSchema(
+        {
+          lat: {
+            type:
+              "number",
 
-      properties: {
-        lat: {
-          type:
-            "number",
+            minimum:
+              -90,
 
-          minimum:
-            -90,
+            maximum:
+              90,
 
-          maximum:
-            90,
+            description:
+              "Latitude for the U.S. forecast location.",
+          },
 
-          description:
-            "Latitude for the U.S. forecast location, for example 33.68.",
+          lon: {
+            type:
+              "number",
+
+            minimum:
+              -180,
+
+            maximum:
+              180,
+
+            description:
+              "Longitude for the U.S. forecast location.",
+          },
         },
 
-        lon: {
-          type:
-            "number",
-
-          minimum:
-            -180,
-
-          maximum:
-            180,
-
-          description:
-            "Longitude for the U.S. forecast location, for example -117.18.",
-        },
-      },
-
-      required: [
-        "lat",
-        "lon",
-      ],
-    },
+        [
+          "lat",
+          "lon",
+        ]
+      ),
 
     outputExample: {
       status:
@@ -960,138 +1023,98 @@ const weatherDiscovery =
         "2026-08-15T20:00:00.000Z",
     },
 
-    outputSchema: {
-      type:
-        "object",
+    outputSchema:
+      objectSchema(
+        {
+          status:
+            str,
 
-      additionalProperties:
-        false,
+          payment:
+            str,
 
-      properties: {
-        status:
-          successString,
+          source:
+            str,
 
-        payment: {
-          type:
-            "string",
-        },
+          coordinates:
+            objectSchema(
+              {
+                lat:
+                  num,
 
-        source: {
-          type:
-            "string",
-        },
-
-        coordinates: {
-          type:
-            "object",
-
-          properties: {
-            lat: {
-              type:
-                "number",
-            },
-
-            lon: {
-              type:
-                "number",
-            },
-          },
-
-          required: [
-            "lat",
-            "lon",
-          ],
-        },
-
-        location: {
-          type:
-            "object",
-
-          properties: {
-            city:
-              nullableString,
-
-            state:
-              nullableString,
-          },
-
-          required: [
-            "city",
-            "state",
-          ],
-        },
-
-        periods: {
-          type:
-            "array",
-
-          description:
-            "Up to 10 National Weather Service forecast periods.",
-
-          items: {
-            type:
-              "object",
-
-            properties: {
-              name:
-                nullableString,
-
-              startTime:
-                nullableString,
-
-              endTime:
-                nullableString,
-
-              isDaytime: {
-                type: [
-                  "boolean",
-                  "null",
-                ],
+                lon:
+                  num,
               },
 
-              temperature: {
-                type: [
-                  "number",
-                  "null",
-                ],
+              [
+                "lat",
+                "lon",
+              ]
+            ),
+
+          location:
+            objectSchema(
+              {
+                city:
+                  nullableStr,
+
+                state:
+                  nullableStr,
               },
 
-              temperatureUnit:
-                nullableString,
+              [
+                "city",
+                "state",
+              ]
+            ),
 
-              windSpeed:
-                nullableString,
+          periods:
+            arraySchema(
+              objectSchema({
+                name:
+                  nullableStr,
 
-              windDirection:
-                nullableString,
+                startTime:
+                  nullableStr,
 
-              shortForecast:
-                nullableString,
+                endTime:
+                  nullableStr,
 
-              detailedForecast:
-                nullableString,
-            },
-          },
+                isDaytime:
+                  nullableBool,
+
+                temperature:
+                  nullableNum,
+
+                temperatureUnit:
+                  nullableStr,
+
+                windSpeed:
+                  nullableStr,
+
+                windDirection:
+                  nullableStr,
+
+                shortForecast:
+                  nullableStr,
+
+                detailedForecast:
+                  nullableStr,
+              })
+            ),
+
+          retrievedAt:
+            str,
         },
 
-        retrievedAt: {
-          type:
-            "string",
-
-          format:
-            "date-time",
-        },
-      },
-
-      required: [
-        "status",
-        "source",
-        "coordinates",
-        "location",
-        "periods",
-        "retrievedAt",
-      ],
-    },
+        [
+          "status",
+          "source",
+          "coordinates",
+          "location",
+          "periods",
+          "retrievedAt",
+        ]
+      ),
   });
 
 // ============================================================================
@@ -1108,30 +1131,22 @@ const urlAnalyzeDiscovery =
         "https://example.com",
     },
 
-    inputSchema: {
-      type:
-        "object",
+    inputSchema:
+      objectSchema(
+        {
+          url: {
+            type:
+              "string",
 
-      additionalProperties:
-        false,
-
-      properties: {
-        url: {
-          type:
-            "string",
-
-          format:
-            "uri",
-
-          description:
-            "Public webpage URL to inspect for SEO metadata, headings, links, email addresses, social links, and basic content statistics.",
+            description:
+              "Public webpage URL to inspect for SEO metadata, headings, links, email addresses, social links, and content statistics.",
+          },
         },
-      },
 
-      required: [
-        "url",
-      ],
-    },
+        [
+          "url",
+        ]
+      ),
 
     outputExample: {
       status:
@@ -1184,129 +1199,78 @@ const urlAnalyzeDiscovery =
         "2026-08-15T20:00:00.000Z",
     },
 
-    outputSchema: {
-      type:
-        "object",
+    outputSchema:
+      objectSchema(
+        {
+          status:
+            str,
 
-      additionalProperties:
-        false,
+          payment:
+            str,
 
-      properties: {
-        status:
-          successString,
+          url:
+            str,
 
-        payment: {
-          type:
-            "string",
-        },
+          contentType:
+            str,
 
-        url: {
-          type:
-            "string",
-
-          format:
-            "uri",
-        },
-
-        contentType: {
-          type:
-            "string",
-        },
-
-        title:
-          nullableString,
-
-        description:
-          nullableString,
-
-        canonical: {
-          type: [
-            "string",
-            "null",
-          ],
-        },
-
-        language:
-          nullableString,
-
-        wordCount: {
-          type:
-            "integer",
-
-          minimum:
-            0,
-        },
-
-        headings: {
-          type:
-            "array",
-
-          items: {
-            type:
-              "string",
-          },
-        },
-
-        linkCount: {
-          type:
-            "integer",
-
-          minimum:
-            0,
-        },
-
-        externalLinkCount: {
-          type:
-            "integer",
-
-          minimum:
-            0,
-        },
-
-        emails: {
-          type:
-            "array",
-
-          items: {
-            type:
-              "string",
-          },
-        },
-
-        socialLinks: {
-          type:
-            "object",
-
-          additionalProperties: {
-            type:
-              "string",
-          },
+          title:
+            nullableStr,
 
           description:
-            "Detected public social profile URLs keyed by platform.",
+            nullableStr,
+
+          canonical:
+            nullableStr,
+
+          language:
+            nullableStr,
+
+          wordCount:
+            integer,
+
+          headings:
+            arraySchema(
+              str
+            ),
+
+          linkCount:
+            integer,
+
+          externalLinkCount:
+            integer,
+
+          emails:
+            arraySchema(
+              str
+            ),
+
+          socialLinks: {
+            type:
+              "object",
+
+            additionalProperties: {
+              type:
+                "string",
+            },
+          },
+
+          retrievedAt:
+            str,
         },
 
-        retrievedAt: {
-          type:
-            "string",
-
-          format:
-            "date-time",
-        },
-      },
-
-      required: [
-        "status",
-        "url",
-        "wordCount",
-        "headings",
-        "linkCount",
-        "externalLinkCount",
-        "emails",
-        "socialLinks",
-        "retrievedAt",
-      ],
-    },
+        [
+          "status",
+          "url",
+          "wordCount",
+          "headings",
+          "linkCount",
+          "externalLinkCount",
+          "emails",
+          "socialLinks",
+          "retrievedAt",
+        ]
+      ),
   });
 
 // ============================================================================
@@ -1323,27 +1287,22 @@ const receiptDiscovery =
         "Coffee 4.50\nTax 0.36\nTotal 4.86",
     },
 
-    inputSchema: {
-      type:
-        "object",
+    inputSchema:
+      objectSchema(
+        {
+          text: {
+            type:
+              "string",
 
-      additionalProperties:
-        false,
-
-      properties: {
-        text: {
-          type:
-            "string",
-
-          description:
-            "Raw receipt text with one or more lines. Use this after OCR when the source is an image; this endpoint itself does not perform OCR.",
+            description:
+              "Raw receipt text. Use after OCR when the source is an image; this endpoint itself does not perform OCR.",
+          },
         },
-      },
 
-      required: [
-        "text",
-      ],
-    },
+        [
+          "text",
+        ]
+      ),
 
     outputExample: {
       status:
@@ -1353,7 +1312,7 @@ const receiptDiscovery =
         "verified",
 
       network:
-        "eip155:8453",
+        NETWORK,
 
       currency:
         "USDC",
@@ -1383,113 +1342,74 @@ const receiptDiscovery =
       },
     },
 
-    outputSchema: {
-      type:
-        "object",
+    outputSchema:
+      objectSchema(
+        {
+          status:
+            str,
 
-      additionalProperties:
-        false,
+          payment:
+            str,
 
-      properties: {
-        status:
-          successString,
+          network:
+            str,
 
-        payment: {
-          type:
-            "string",
-        },
+          currency:
+            str,
 
-        network: {
-          type:
-            "string",
-        },
+          parsedData:
+            objectSchema(
+              {
+                items:
+                  arraySchema(
+                    objectSchema(
+                      {
+                        name:
+                          str,
 
-        currency: {
-          type:
-            "string",
-        },
+                        amount:
+                          num,
+                      },
 
-        parsedData: {
-          type:
-            "object",
+                      [
+                        "name",
+                        "amount",
+                      ]
+                    )
+                  ),
 
-          properties: {
-            items: {
-              type:
-                "array",
+                subtotal:
+                  nullableNum,
 
-              items: {
-                type:
-                  "object",
+                tax:
+                  nullableNum,
 
-                properties: {
-                  name: {
-                    type:
-                      "string",
-                  },
+                total:
+                  nullableNum,
 
-                  amount: {
-                    type:
-                      "number",
-                  },
-                },
-
-                required: [
-                  "name",
-                  "amount",
-                ],
+                linesDetected:
+                  integer,
               },
-            },
 
-            subtotal: {
-              type: [
-                "number",
-                "null",
-              ],
-            },
-
-            tax: {
-              type: [
-                "number",
-                "null",
-              ],
-            },
-
-            total: {
-              type: [
-                "number",
-                "null",
-              ],
-            },
-
-            linesDetected: {
-              type:
-                "integer",
-
-              minimum:
-                0,
-            },
-          },
-
-          required: [
-            "items",
-            "subtotal",
-            "tax",
-            "total",
-            "linesDetected",
-          ],
+              [
+                "items",
+                "subtotal",
+                "tax",
+                "total",
+                "linesDetected",
+              ]
+            ),
         },
-      },
 
-      required: [
-        "status",
-        "parsedData",
-      ],
-    },
+        [
+          "status",
+          "parsedData",
+        ]
+      ),
   });
 
 // ============================================================================
-// CRYPTO MARKET DISCOVERY
+// CRYPTO DISCOVERY
 // ============================================================================
 
 const cryptoDiscovery =
@@ -1499,23 +1419,16 @@ const cryptoDiscovery =
         "BTC-USD",
     },
 
-    inputSchema: {
-      type:
-        "object",
-
-      properties: {
+    inputSchema:
+      objectSchema({
         pair: {
           type:
             "string",
 
           description:
-            "Coinbase Exchange trading pair such as BTC-USD, ETH-USD, SOL-USD, or another supported product pair. Defaults to BTC-USD.",
+            "Coinbase Exchange trading pair such as BTC-USD, ETH-USD, or SOL-USD. Defaults to BTC-USD.",
         },
-      },
-
-      required:
-        [],
-    },
+      }),
 
     outputExample: {
       status:
@@ -1570,100 +1483,109 @@ const cryptoDiscovery =
         false,
     },
 
-    outputSchema: {
-      type:
-        "object",
+    outputSchema:
+      objectSchema(
+        {
+          status:
+            str,
 
-      additionalProperties:
-        false,
+          payment:
+            str,
 
-      properties: {
-        status:
-          successString,
+          source:
+            str,
 
-        payment: {
-          type:
-            "string",
+          pair:
+            str,
+
+          price:
+            nullableStr,
+
+          lastTradeSize:
+            nullableStr,
+
+          bestBid:
+            nullableStr,
+
+          bestAsk:
+            nullableStr,
+
+          open24h:
+            nullableStr,
+
+          high24h:
+            nullableStr,
+
+          low24h:
+            nullableStr,
+
+          last24h:
+            nullableStr,
+
+          volume24h:
+            nullableStr,
+
+          volume30d:
+            nullableStr,
+
+          tickerTime:
+            nullableStr,
+
+          retrievedAt:
+            str,
+
+          cached:
+            bool,
         },
 
-        source: {
-          type:
-            "string",
-        },
-
-        pair: {
-          type:
-            "string",
-        },
-
-        price:
-          nullableString,
-
-        lastTradeSize:
-          nullableString,
-
-        bestBid:
-          nullableString,
-
-        bestAsk:
-          nullableString,
-
-        open24h:
-          nullableString,
-
-        high24h:
-          nullableString,
-
-        low24h:
-          nullableString,
-
-        last24h:
-          nullableString,
-
-        volume24h:
-          nullableString,
-
-        volume30d:
-          nullableString,
-
-        tickerTime:
-          nullableString,
-
-        retrievedAt: {
-          type:
-            "string",
-
-          format:
-            "date-time",
-        },
-
-        cached: {
-          type:
-            "boolean",
-        },
-      },
-
-      required: [
-        "status",
-        "source",
-        "pair",
-        "price",
-        "bestBid",
-        "bestAsk",
-        "open24h",
-        "high24h",
-        "low24h",
-        "volume24h",
-        "volume30d",
-        "retrievedAt",
-        "cached",
-      ],
-    },
+        [
+          "status",
+          "source",
+          "pair",
+          "price",
+          "bestBid",
+          "bestAsk",
+          "open24h",
+          "high24h",
+          "low24h",
+          "volume24h",
+          "volume30d",
+          "retrievedAt",
+          "cached",
+        ]
+      ),
   });
 
 // ============================================================================
 // SEC DISCOVERY
 // ============================================================================
+
+const secFilingSchema =
+  objectSchema({
+    form:
+      nullableStr,
+
+    filingDate:
+      nullableStr,
+
+    reportDate:
+      nullableStr,
+
+    acceptanceDateTime:
+      nullableStr,
+
+    accessionNumber:
+      nullableStr,
+
+    primaryDocument:
+      nullableStr,
+
+    description:
+      nullableStr,
+
+    url:
+      nullableStr,
+  });
 
 const secDiscovery =
   makeDiscovery({
@@ -1672,24 +1594,22 @@ const secDiscovery =
         "TSLA",
     },
 
-    inputSchema: {
-      type:
-        "object",
+    inputSchema:
+      objectSchema(
+        {
+          ticker: {
+            type:
+              "string",
 
-      properties: {
-        ticker: {
-          type:
-            "string",
-
-          description:
-            "U.S. public-company ticker symbol such as TSLA, AAPL, MSFT, NVDA, or AMZN.",
+            description:
+              "U.S. public-company ticker such as TSLA, AAPL, MSFT, NVDA, or AMZN.",
+          },
         },
-      },
 
-      required: [
-        "ticker",
-      ],
-    },
+        [
+          "ticker",
+        ]
+      ),
 
     outputExample: {
       status:
@@ -1747,18 +1667,6 @@ const secDiscovery =
           reportDate:
             "2026-06-30",
 
-          acceptanceDateTime:
-            "2026-07-24T16:00:00.000Z",
-
-          accessionNumber:
-            "0000000000-26-000001",
-
-          primaryDocument:
-            "tsla-20260630.htm",
-
-          description:
-            "Quarterly report",
-
           url:
             "https://www.sec.gov/Archives/edgar/data/example",
         },
@@ -1771,149 +1679,80 @@ const secDiscovery =
         "2026-08-15T20:00:00.000Z",
     },
 
-    outputSchema: {
-      type:
-        "object",
+    outputSchema:
+      objectSchema(
+        {
+          status:
+            str,
 
-      additionalProperties:
-        false,
+          payment:
+            str,
 
-      properties: {
-        status:
-          successString,
+          source:
+            str,
 
-        payment: {
-          type:
-            "string",
+          ticker:
+            str,
+
+          company:
+            str,
+
+          cik:
+            str,
+
+          sic:
+            nullableStr,
+
+          sicDescription:
+            nullableStr,
+
+          stateOfIncorporation:
+            nullableStr,
+
+          fiscalYearEnd:
+            nullableStr,
+
+          exchanges:
+            arraySchema(
+              str
+            ),
+
+          tickers:
+            arraySchema(
+              str
+            ),
+
+          website:
+            nullableStr,
+
+          investorWebsite:
+            nullableStr,
+
+          recentFilings:
+            arraySchema(
+              secFilingSchema
+            ),
+
+          keyFilings:
+            arraySchema(
+              secFilingSchema
+            ),
+
+          retrievedAt:
+            str,
         },
 
-        source: {
-          type:
-            "string",
-        },
-
-        ticker: {
-          type:
-            "string",
-        },
-
-        company: {
-          type:
-            "string",
-        },
-
-        cik: {
-          type:
-            "string",
-        },
-
-        sic:
-          nullableString,
-
-        sicDescription:
-          nullableString,
-
-        stateOfIncorporation:
-          nullableString,
-
-        fiscalYearEnd:
-          nullableString,
-
-        exchanges: {
-          type:
-            "array",
-
-          items: {
-            type:
-              "string",
-          },
-        },
-
-        tickers: {
-          type:
-            "array",
-
-          items: {
-            type:
-              "string",
-          },
-        },
-
-        website:
-          nullableString,
-
-        investorWebsite:
-          nullableString,
-
-        recentFilings: {
-          type:
-            "array",
-
-          items: {
-            type:
-              "object",
-
-            properties: {
-              form:
-                nullableString,
-
-              filingDate:
-                nullableString,
-
-              reportDate:
-                nullableString,
-
-              acceptanceDateTime:
-                nullableString,
-
-              accessionNumber:
-                nullableString,
-
-              primaryDocument:
-                nullableString,
-
-              description:
-                nullableString,
-
-              url:
-                nullableString,
-            },
-          },
-        },
-
-        keyFilings: {
-          type:
-            "array",
-
-          items: {
-            type:
-              "object",
-
-            additionalProperties:
-              true,
-          },
-        },
-
-        retrievedAt: {
-          type:
-            "string",
-
-          format:
-            "date-time",
-        },
-      },
-
-      required: [
-        "status",
-        "source",
-        "ticker",
-        "company",
-        "cik",
-        "recentFilings",
-        "keyFilings",
-        "retrievedAt",
-      ],
-    },
+        [
+          "status",
+          "source",
+          "ticker",
+          "company",
+          "cik",
+          "recentFilings",
+          "keyFilings",
+          "retrievedAt",
+        ]
+      ),
   });
 
 // ============================================================================
@@ -1930,30 +1769,22 @@ const researchDiscovery =
         "https://example.com",
     },
 
-    inputSchema: {
-      type:
-        "object",
+    inputSchema:
+      objectSchema(
+        {
+          url: {
+            type:
+              "string",
 
-      additionalProperties:
-        false,
-
-      properties: {
-        url: {
-          type:
-            "string",
-
-          format:
-            "uri",
-
-          description:
-            "Public website URL to research. Use when an agent needs a fast company/site profile, content excerpt, metadata, contact clues, social links, headings, and external-domain relationships.",
+            description:
+              "Public website URL to research for metadata, readable text, contacts, social links, headings, and external-domain relationships.",
+          },
         },
-      },
 
-      required: [
-        "url",
-      ],
-    },
+        [
+          "url",
+        ]
+      ),
 
     outputExample: {
       status:
@@ -1963,7 +1794,7 @@ const researchDiscovery =
         "verified",
 
       network:
-        "eip155:8453",
+        NETWORK,
 
       currency:
         "USDC",
@@ -2034,226 +1865,417 @@ const researchDiscovery =
         "2026-08-15T20:00:00.000Z",
     },
 
-    outputSchema: {
-      type:
-        "object",
+    outputSchema:
+      objectSchema(
+        {
+          status:
+            str,
 
-      additionalProperties:
-        false,
+          payment:
+            str,
 
-      properties: {
-        status:
-          successString,
+          network:
+            str,
 
-        payment: {
-          type:
-            "string",
-        },
+          currency:
+            str,
 
-        network: {
-          type:
-            "string",
-        },
+          url:
+            str,
 
-        currency: {
-          type:
-            "string",
-        },
+          domain:
+            str,
 
-        url: {
-          type:
-            "string",
+          contentType:
+            str,
 
-          format:
-            "uri",
-        },
+          profile:
+            objectSchema(
+              {
+                title:
+                  nullableStr,
 
-        domain: {
-          type:
-            "string",
-        },
+                description:
+                  nullableStr,
 
-        contentType: {
-          type:
-            "string",
-        },
+                canonical:
+                  nullableStr,
 
-        profile: {
-          type:
-            "object",
+                language:
+                  nullableStr,
 
-          properties: {
-            title:
-              nullableString,
+                wordCount:
+                  integer,
 
-            description:
-              nullableString,
+                headings:
+                  arraySchema(
+                    str
+                  ),
 
-            canonical:
-              nullableString,
+                emails:
+                  arraySchema(
+                    str
+                  ),
 
-            language:
-              nullableString,
+                socialLinks: {
+                  type:
+                    "object",
 
-            wordCount: {
-              type:
-                "integer",
+                  additionalProperties: {
+                    type:
+                      "string",
+                  },
+                },
 
-              minimum:
-                0,
-            },
+                linkCount:
+                  integer,
 
-            headings: {
-              type:
-                "array",
-
-              items: {
-                type:
-                  "string",
-              },
-            },
-
-            emails: {
-              type:
-                "array",
-
-              items: {
-                type:
-                  "string",
-              },
-            },
-
-            socialLinks: {
-              type:
-                "object",
-
-              additionalProperties: {
-                type:
-                  "string",
-              },
-            },
-
-            linkCount: {
-              type:
-                "integer",
-
-              minimum:
-                0,
-            },
-
-            externalLinkCount: {
-              type:
-                "integer",
-
-              minimum:
-                0,
-            },
-          },
-
-          required: [
-            "wordCount",
-            "headings",
-            "emails",
-            "socialLinks",
-            "linkCount",
-            "externalLinkCount",
-          ],
-        },
-
-        topExternalDomains: {
-          type:
-            "array",
-
-          items: {
-            type:
-              "object",
-
-            properties: {
-              domain: {
-                type:
-                  "string",
+                externalLinkCount:
+                  integer,
               },
 
-              links: {
-                type:
-                  "integer",
+              [
+                "wordCount",
+                "headings",
+                "emails",
+                "socialLinks",
+                "linkCount",
+                "externalLinkCount",
+              ]
+            ),
 
-                minimum:
-                  1,
-              },
-            },
+          topExternalDomains:
+            arraySchema(
+              objectSchema(
+                {
+                  domain:
+                    str,
 
-            required: [
-              "domain",
-              "links",
-            ],
-          },
+                  links:
+                    integer,
+                },
+
+                [
+                  "domain",
+                  "links",
+                ]
+              )
+            ),
+
+          textExcerpt:
+            str,
+
+          textCharactersAvailable:
+            integer,
+
+          textTruncated:
+            bool,
+
+          retrievedAt:
+            str,
         },
 
-        textExcerpt: {
-          type:
-            "string",
-
-          description:
-            "Readable website text excerpt capped at 12,000 characters.",
-        },
-
-        textCharactersAvailable: {
-          type:
-            "integer",
-
-          minimum:
-            0,
-        },
-
-        textTruncated: {
-          type:
-            "boolean",
-        },
-
-        retrievedAt: {
-          type:
-            "string",
-
-          format:
-            "date-time",
-        },
-      },
-
-      required: [
-        "status",
-        "url",
-        "domain",
-        "contentType",
-        "profile",
-        "topExternalDomains",
-        "textExcerpt",
-        "textCharactersAvailable",
-        "textTruncated",
-        "retrievedAt",
-      ],
-    },
+        [
+          "status",
+          "url",
+          "domain",
+          "contentType",
+          "profile",
+          "topExternalDomains",
+          "textExcerpt",
+          "textCharactersAvailable",
+          "textTruncated",
+          "retrievedAt",
+        ]
+      ),
   });
 
 // ============================================================================
-// PAID ROUTE CONFIG
+// SPORTS DISCOVERY
+// ============================================================================
+
+const sportsGameSchema =
+  objectSchema(
+    {
+      id: {
+        type: [
+          "integer",
+          "string",
+        ],
+      },
+
+      league:
+        str,
+
+      date:
+        str,
+
+      status:
+        str,
+
+      homeTeam:
+        teamOutputSchema,
+
+      awayTeam:
+        teamOutputSchema,
+
+      homeScore:
+        nullableNum,
+
+      awayScore:
+        nullableNum,
+
+      venue:
+        nullableStr,
+
+      period:
+        nullableInteger,
+
+      clock:
+        nullableStr,
+
+      postseason:
+        nullableBool,
+
+      summary:
+        str,
+    },
+
+    [
+      "id",
+      "league",
+      "date",
+      "status",
+      "homeTeam",
+      "awayTeam",
+      "homeScore",
+      "awayScore",
+      "venue",
+      "summary",
+    ]
+  );
+
+const sportsDiscovery =
+  makeDiscovery({
+    input: {
+      league:
+        "NFL",
+
+      date:
+        "2026-08-16",
+
+      team:
+        "KC",
+
+      limit:
+        10,
+    },
+
+    inputSchema:
+      objectSchema(
+        {
+          league: {
+            type:
+              "string",
+
+            enum: [
+              "NBA",
+              "NFL",
+              "MLB",
+              "EPL",
+            ],
+
+            description:
+              "Sports league: NBA basketball, NFL football, MLB baseball, or EPL English Premier League soccer.",
+          },
+
+          date: {
+            type:
+              "string",
+
+            description:
+              "Game date in YYYY-MM-DD. Defaults to today's UTC date.",
+          },
+
+          team: {
+            type:
+              "string",
+
+            description:
+              "Optional team name or abbreviation filter, such as LAL, Lakers, KC, Chiefs, LAD, Dodgers, Arsenal, or ARS.",
+          },
+
+          limit: {
+            type:
+              "integer",
+
+            minimum:
+              1,
+
+            maximum:
+              20,
+
+            description:
+              "Maximum games returned. Defaults to 10 and cannot exceed 20.",
+          },
+        },
+
+        [
+          "league",
+        ]
+      ),
+
+    outputExample: {
+      status:
+        "success",
+
+      payment:
+        "verified",
+
+      source:
+        "BALLDONTLIE",
+
+      league:
+        "NFL",
+
+      date:
+        "2026-08-16",
+
+      teamFilter:
+        "KC",
+
+      count:
+        1,
+
+      cached:
+        false,
+
+      stale:
+        false,
+
+      retrievedAt:
+        "2026-08-16T18:00:00.000Z",
+
+      games: [
+        {
+          id:
+            7001,
+
+          league:
+            "NFL",
+
+          date:
+            "2026-08-16T00:20:00.000Z",
+
+          status:
+            "Final",
+
+          homeTeam: {
+            name:
+              "Kansas City Chiefs",
+
+            abbreviation:
+              "KC",
+          },
+
+          awayTeam: {
+            name:
+              "Baltimore Ravens",
+
+            abbreviation:
+              "BAL",
+          },
+
+          homeScore:
+            27,
+
+          awayScore:
+            20,
+
+          venue:
+            "GEHA Field at Arrowhead Stadium",
+
+          period:
+            4,
+
+          clock:
+            null,
+
+          postseason:
+            false,
+
+          summary:
+            "Baltimore Ravens 20 at Kansas City Chiefs 27 — Final",
+        },
+      ],
+    },
+
+    outputSchema:
+      objectSchema(
+        {
+          status:
+            str,
+
+          payment:
+            str,
+
+          source:
+            str,
+
+          league:
+            str,
+
+          date:
+            str,
+
+          teamFilter:
+            nullableStr,
+
+          count:
+            integer,
+
+          cached:
+            bool,
+
+          stale:
+            bool,
+
+          retrievedAt:
+            str,
+
+          games:
+            arraySchema(
+              sportsGameSchema
+            ),
+        },
+
+        [
+          "status",
+          "source",
+          "league",
+          "date",
+          "teamFilter",
+          "count",
+          "cached",
+          "stale",
+          "retrievedAt",
+          "games",
+        ]
+      ),
+  });
+
+// ============================================================================
+// PAID ROUTE CONFIGURATION
 // ============================================================================
 
 const routesConfig = {
   "POST /api/scrape": {
     accepts: [
       {
-        scheme:
-          "exact",
-
-        network:
-          NETWORK,
-
-        payTo:
-          PAY_TO,
-
-        price:
-          "$0.005",
+        scheme: "exact",
+        network: NETWORK,
+        payTo: PAY_TO,
+        price: "$0.005",
       },
     ],
 
@@ -2271,17 +2293,10 @@ const routesConfig = {
   "GET /api/exchange-rate": {
     accepts: [
       {
-        scheme:
-          "exact",
-
-        network:
-          NETWORK,
-
-        payTo:
-          PAY_TO,
-
-        price:
-          "$0.01",
+        scheme: "exact",
+        network: NETWORK,
+        payTo: PAY_TO,
+        price: "$0.01",
       },
     ],
 
@@ -2299,17 +2314,10 @@ const routesConfig = {
   "GET /api/trends": {
     accepts: [
       {
-        scheme:
-          "exact",
-
-        network:
-          NETWORK,
-
-        payTo:
-          PAY_TO,
-
-        price:
-          "$0.02",
+        scheme: "exact",
+        network: NETWORK,
+        payTo: PAY_TO,
+        price: "$0.02",
       },
     ],
 
@@ -2327,17 +2335,10 @@ const routesConfig = {
   "GET /api/weather": {
     accepts: [
       {
-        scheme:
-          "exact",
-
-        network:
-          NETWORK,
-
-        payTo:
-          PAY_TO,
-
-        price:
-          "$0.02",
+        scheme: "exact",
+        network: NETWORK,
+        payTo: PAY_TO,
+        price: "$0.02",
       },
     ],
 
@@ -2355,17 +2356,10 @@ const routesConfig = {
   "POST /api/url-analyze": {
     accepts: [
       {
-        scheme:
-          "exact",
-
-        network:
-          NETWORK,
-
-        payTo:
-          PAY_TO,
-
-        price:
-          "$0.03",
+        scheme: "exact",
+        network: NETWORK,
+        payTo: PAY_TO,
+        price: "$0.03",
       },
     ],
 
@@ -2383,17 +2377,10 @@ const routesConfig = {
   "POST /api/parse-receipt": {
     accepts: [
       {
-        scheme:
-          "exact",
-
-        network:
-          NETWORK,
-
-        payTo:
-          PAY_TO,
-
-        price:
-          "$0.05",
+        scheme: "exact",
+        network: NETWORK,
+        payTo: PAY_TO,
+        price: "$0.05",
       },
     ],
 
@@ -2411,17 +2398,10 @@ const routesConfig = {
   "GET /api/crypto-market": {
     accepts: [
       {
-        scheme:
-          "exact",
-
-        network:
-          NETWORK,
-
-        payTo:
-          PAY_TO,
-
-        price:
-          "$0.05",
+        scheme: "exact",
+        network: NETWORK,
+        payTo: PAY_TO,
+        price: "$0.05",
       },
     ],
 
@@ -2439,17 +2419,10 @@ const routesConfig = {
   "GET /api/sec-company": {
     accepts: [
       {
-        scheme:
-          "exact",
-
-        network:
-          NETWORK,
-
-        payTo:
-          PAY_TO,
-
-        price:
-          "$0.05",
+        scheme: "exact",
+        network: NETWORK,
+        payTo: PAY_TO,
+        price: "$0.05",
       },
     ],
 
@@ -2467,17 +2440,10 @@ const routesConfig = {
   "POST /api/website-research": {
     accepts: [
       {
-        scheme:
-          "exact",
-
-        network:
-          NETWORK,
-
-        payTo:
-          PAY_TO,
-
-        price:
-          "$0.10",
+        scheme: "exact",
+        network: NETWORK,
+        payTo: PAY_TO,
+        price: "$0.10",
       },
     ],
 
@@ -2489,6 +2455,27 @@ const routesConfig = {
 
     extensions: {
       ...researchDiscovery,
+    },
+  },
+
+  "GET /api/sports-game-brief": {
+    accepts: [
+      {
+        scheme: "exact",
+        network: NETWORK,
+        payTo: PAY_TO,
+        price: "$0.05",
+      },
+    ],
+
+    description:
+      "Get normalized sports schedules, live or recent scores, matchup status, teams, venue and a concise game brief for NBA, NFL, MLB and English Premier League (EPL). Filter by league, date and optional team name or abbreviation. Use for NBA scores, NFL games, MLB scores, EPL fixtures, today's games, schedules and AI sports research.",
+
+    mimeType:
+      "application/json",
+
+    extensions: {
+      ...sportsDiscovery,
     },
   },
 };
@@ -2513,14 +2500,10 @@ function isPrivateIPv4(
       .map(Number);
 
   if (
-    parts.length !==
-      4 ||
-
+    parts.length !== 4 ||
     parts.some(
       (n) =>
-        !Number.isInteger(
-          n
-        ) ||
+        !Number.isInteger(n) ||
         n < 0 ||
         n > 255
     )
@@ -2573,8 +2556,7 @@ function isPrivateIPv4(
   }
 
   if (
-    a >=
-    224
+    a >= 224
   ) {
     return true;
   }
@@ -2589,29 +2571,21 @@ function isPrivateIPv6(
     address.toLowerCase();
 
   if (
-    value ===
-      "::1" ||
-    value ===
-      "::"
+    value === "::1" ||
+    value === "::"
   ) {
     return true;
   }
 
   if (
-    value.startsWith(
-      "fc"
-    ) ||
-    value.startsWith(
-      "fd"
-    )
+    value.startsWith("fc") ||
+    value.startsWith("fd")
   ) {
     return true;
   }
 
   if (
-    /^fe[89ab]/.test(
-      value
-    )
+    /^fe[89ab]/.test(value)
   ) {
     return true;
   }
@@ -2622,15 +2596,10 @@ function isPrivateIPv6(
     )
   ) {
     const ipv4 =
-      value.slice(
-        7
-      );
+      value.slice(7);
 
     if (
-      isIP(
-        ipv4
-      ) ===
-      4
+      isIP(ipv4) === 4
     ) {
       return isPrivateIPv4(
         ipv4
@@ -2645,10 +2614,7 @@ function isPrivateAddress(
   address
 ) {
   if (
-    isIP(
-      address
-    ) ===
-    4
+    isIP(address) === 4
   ) {
     return isPrivateIPv4(
       address
@@ -2656,10 +2622,7 @@ function isPrivateAddress(
   }
 
   if (
-    isIP(
-      address
-    ) ===
-    6
+    isIP(address) === 6
   ) {
     return isPrivateIPv6(
       address
@@ -2725,9 +2688,7 @@ async function validatePublicUrl(
   }
 
   if (
-    isIP(
-      hostname
-    )
+    isIP(hostname)
   ) {
     if (
       isPrivateAddress(
@@ -2739,8 +2700,7 @@ async function validatePublicUrl(
       );
     }
 
-    return parsed
-      .toString();
+    return parsed.toString();
   }
 
   const addresses =
@@ -2748,11 +2708,8 @@ async function validatePublicUrl(
       hostname,
 
       {
-        all:
-          true,
-
-        verbatim:
-          true,
+        all: true,
+        verbatim: true,
       }
     );
 
@@ -2779,8 +2736,7 @@ async function validatePublicUrl(
     }
   }
 
-  return parsed
-    .toString();
+  return parsed.toString();
 }
 
 // ============================================================================
@@ -2946,10 +2902,8 @@ async function fetchPublicPage(
           (
             status
           ) =>
-            status >=
-              200 &&
-            status <
-              300,
+            status >= 200 &&
+            status < 300,
       }
     );
 
@@ -3010,40 +2964,34 @@ function analyzeHtml(
   const title =
     firstMatch(
       html,
-
       /<title[^>]*>([\s\S]*?)<\/title>/i
     );
 
   const description =
     firstMatch(
       html,
-
       /<meta[^>]+name=["']description["'][^>]+content=["']([^"']*)["'][^>]*>/i
     ) ||
 
     firstMatch(
       html,
-
       /<meta[^>]+content=["']([^"']*)["'][^>]+name=["']description["'][^>]*>/i
     );
 
   const canonicalRaw =
     firstMatch(
       html,
-
       /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["'][^>]*>/i
     ) ||
 
     firstMatch(
       html,
-
       /<link[^>]+href=["']([^"']+)["'][^>]+rel=["']canonical["'][^>]*>/i
     );
 
   const language =
     firstMatch(
       html,
-
       /<html[^>]+lang=["']([^"']+)["'][^>]*>/i
     );
 
@@ -3315,8 +3263,7 @@ function buildExternalDomainCounts(
 
       if (
         host &&
-        host !==
-          baseHost
+        host !== baseHost
       ) {
         counts.set(
           host,
@@ -3327,7 +3274,7 @@ function buildExternalDomainCounts(
             ) ||
             0
           ) +
-            1
+          1
         );
       }
     } catch {
@@ -3371,10 +3318,8 @@ function handlePublicPageError(
 ) {
   console.error(
     "Public page error:",
-
-    error.response
-      ?.data ||
-    error.message
+    error.response?.data ||
+      error.message
   );
 
   if (
@@ -3394,9 +3339,7 @@ function handlePublicPageError(
     )
   ) {
     return res
-      .status(
-        400
-      )
+      .status(400)
       .json({
         error:
           error.message,
@@ -3408,9 +3351,7 @@ function handlePublicPageError(
     415
   ) {
     return res
-      .status(
-        415
-      )
+      .status(415)
       .json({
         error:
           error.message,
@@ -3421,23 +3362,18 @@ function handlePublicPageError(
     error.response
   ) {
     return res
-      .status(
-        502
-      )
+      .status(502)
       .json({
         error:
           "The remote website rejected or failed the request.",
 
         remoteStatus:
-          error.response
-            .status,
+          error.response.status,
       });
   }
 
   return res
-    .status(
-      500
-    )
+    .status(500)
     .json({
       error:
         "Failed to process the webpage.",
@@ -3467,9 +3403,7 @@ app.post(
         "string"
     ) {
       return res
-        .status(
-          400
-        )
+        .status(400)
         .json({
           error:
             "Please provide a URL.",
@@ -3583,9 +3517,7 @@ app.get(
       )
     ) {
       return res
-        .status(
-          400
-        )
+        .status(400)
         .json({
           error:
             "from and to must be three-letter currency codes, such as USD and EUR.",
@@ -3604,9 +3536,7 @@ app.get(
         1_000_000_000
     ) {
       return res
-        .status(
-          400
-        )
+        .status(400)
         .json({
           error:
             "amount must be a positive number no greater than 1,000,000,000.",
@@ -3660,9 +3590,7 @@ app.get(
 
             params: {
               from,
-
               to,
-
               amount,
             },
 
@@ -3690,9 +3618,7 @@ app.get(
         )
       ) {
         return res
-          .status(
-            502
-          )
+          .status(502)
           .json({
             error:
               "Exchange-rate provider did not return the requested conversion.",
@@ -3710,8 +3636,7 @@ app.get(
           "Frankfurter",
 
         date:
-          response.data
-            ?.date ||
+          response.data?.date ||
           null,
 
         from,
@@ -3731,16 +3656,12 @@ app.get(
     ) {
       console.error(
         "Exchange-rate error:",
-
-        error.response
-          ?.data ||
-        error.message
+        error.response?.data ||
+          error.message
       );
 
       return res
-        .status(
-          502
-        )
+        .status(502)
         .json({
           error:
             "Failed to retrieve exchange-rate data.",
@@ -3802,6 +3723,7 @@ app.get(
             0,
             5
           )
+
           .map(
             (
               article
@@ -3862,16 +3784,12 @@ app.get(
     ) {
       console.error(
         "Trends error:",
-
-        error.response
-          ?.data ||
-        error.message
+        error.response?.data ||
+          error.message
       );
 
       return res
-        .status(
-          502
-        )
+        .status(502)
         .json({
           error:
             "Failed to retrieve space news.",
@@ -3923,9 +3841,7 @@ app.get(
         180
     ) {
       return res
-        .status(
-          400
-        )
+        .status(400)
         .json({
           error:
             "Provide valid lat and lon coordinates.",
@@ -3963,9 +3879,7 @@ app.get(
         !forecastUrl
       ) {
         return res
-          .status(
-            404
-          )
+          .status(404)
           .json({
             error:
               "National Weather Service forecast is unavailable for these coordinates.",
@@ -4055,7 +3969,6 @@ app.get(
 
         coordinates: {
           lat,
-
           lon,
         },
 
@@ -4086,10 +3999,8 @@ app.get(
     ) {
       console.error(
         "Weather error:",
-
-        error.response
-          ?.data ||
-        error.message
+        error.response?.data ||
+          error.message
       );
 
       if (
@@ -4098,9 +4009,7 @@ app.get(
         404
       ) {
         return res
-          .status(
-            404
-          )
+          .status(404)
           .json({
             error:
               "National Weather Service data is unavailable for these coordinates. This endpoint is intended for U.S. NWS coverage.",
@@ -4108,9 +4017,7 @@ app.get(
       }
 
       return res
-        .status(
-          502
-        )
+        .status(502)
         .json({
           error:
             "Failed to retrieve weather data.",
@@ -4142,9 +4049,7 @@ app.post(
         "string"
     ) {
       return res
-        .status(
-          400
-        )
+        .status(400)
         .json({
           error:
             "Please provide a URL.",
@@ -4405,7 +4310,6 @@ function parseReceiptText(
     ) {
       items.push({
         name,
-
         amount,
       });
     }
@@ -4413,11 +4317,8 @@ function parseReceiptText(
 
   return {
     items,
-
     subtotal,
-
     tax,
-
     total,
 
     linesDetected:
@@ -4449,9 +4350,7 @@ app.post(
           "string"
       ) {
         return res
-          .status(
-            400
-          )
+          .status(400)
           .json({
             error:
               "Please provide receipt text.",
@@ -4468,9 +4367,7 @@ app.post(
         50_000
       ) {
         return res
-          .status(
-            400
-          )
+          .status(400)
           .json({
             error:
               "Receipt text is too large.",
@@ -4500,14 +4397,11 @@ app.post(
     ) {
       console.error(
         "Receipt parser error:",
-
         error.message
       );
 
       return res
-        .status(
-          500
-        )
+        .status(500)
         .json({
           error:
             "Failed to parse receipt.",
@@ -4569,9 +4463,7 @@ app.get(
       )
     ) {
       return res
-        .status(
-          400
-        )
+        .status(400)
         .json({
           error:
             "pair must be a Coinbase Exchange product such as BTC-USD, ETH-USD, or SOL-USD.",
@@ -4708,8 +4600,7 @@ app.get(
           null,
 
         retrievedAt:
-          new Date()
-            .toISOString(),
+          new Date().toISOString(),
 
         cached:
           false,
@@ -4735,10 +4626,8 @@ app.get(
     ) {
       console.error(
         "Crypto market error:",
-
-        error.response
-          ?.data ||
-        error.message
+        error.response?.data ||
+          error.message
       );
 
       if (
@@ -4747,9 +4636,7 @@ app.get(
         404
       ) {
         return res
-          .status(
-            404
-          )
+          .status(404)
           .json({
             error:
               `Coinbase Exchange pair ${pair} was not found.`,
@@ -4762,9 +4649,7 @@ app.get(
         429
       ) {
         return res
-          .status(
-            503
-          )
+          .status(503)
           .json({
             error:
               "Coinbase market data is temporarily rate-limited. Please retry shortly.",
@@ -4775,9 +4660,7 @@ app.get(
       }
 
       return res
-        .status(
-          502
-        )
+        .status(502)
         .json({
           error:
             "Failed to retrieve Coinbase crypto market data.",
@@ -4917,8 +4800,7 @@ function mapRecentSecFilings(
 
   const forms =
     Array.isArray(
-      recent
-        ?.form
+      recent?.form
     )
       ? recent.form
       : [];
@@ -5024,9 +4906,7 @@ app.get(
       )
     ) {
       return res
-        .status(
-          400
-        )
+        .status(400)
         .json({
           error:
             "Please provide a valid ticker, such as TSLA or AAPL.",
@@ -5068,9 +4948,7 @@ app.get(
         !match
       ) {
         return res
-          .status(
-            404
-          )
+          .status(404)
           .json({
             error:
               `Ticker ${ticker} was not found in the SEC ticker list.`,
@@ -5210,10 +5088,8 @@ app.get(
     ) {
       console.error(
         "SEC company error:",
-
-        error.response
-          ?.data ||
-        error.message
+        error.response?.data ||
+          error.message
       );
 
       if (
@@ -5222,9 +5098,7 @@ app.get(
         404
       ) {
         return res
-          .status(
-            404
-          )
+          .status(404)
           .json({
             error:
               `SEC data was not found for ticker ${ticker}.`,
@@ -5232,9 +5106,7 @@ app.get(
       }
 
       return res
-        .status(
-          502
-        )
+        .status(502)
         .json({
           error:
             "Failed to retrieve SEC company data.",
@@ -5266,9 +5138,7 @@ app.post(
         "string"
     ) {
       return res
-        .status(
-          400
-        )
+        .status(400)
         .json({
           error:
             "Please provide a URL.",
@@ -5394,6 +5264,1166 @@ app.post(
 );
 
 // ============================================================================
+// SPORTS HELPERS
+// ============================================================================
+
+const SPORTS_SUPPORTED =
+  new Set([
+    "NBA",
+    "NFL",
+    "MLB",
+    "EPL",
+  ]);
+
+const SPORTS_MIN_UPSTREAM_INTERVAL_MS =
+  13_000;
+
+const sportsCache =
+  new Map();
+
+let sportsLastUpstreamStart =
+  0;
+
+let sportsQueue =
+  Promise.resolve();
+
+function sleep(
+  ms
+) {
+  return new Promise(
+    (
+      resolve
+    ) =>
+      setTimeout(
+        resolve,
+        ms
+      )
+  );
+}
+
+function todayUtc() {
+  return new Date()
+    .toISOString()
+    .slice(
+      0,
+      10
+    );
+}
+
+function validIsoDate(
+  value
+) {
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      value
+    )
+  ) {
+    return false;
+  }
+
+  const date =
+    new Date(
+      `${value}T00:00:00.000Z`
+    );
+
+  return (
+    Number.isFinite(
+      date.getTime()
+    ) &&
+
+    date
+      .toISOString()
+      .slice(
+        0,
+        10
+      ) ===
+      value
+  );
+}
+
+function sportsCacheTtlMs(
+  date
+) {
+  const today =
+    todayUtc();
+
+  if (
+    date <
+    today
+  ) {
+    return (
+      6 *
+      60 *
+      60 *
+      1000
+    );
+  }
+
+  if (
+    date >
+    today
+  ) {
+    return (
+      5 *
+      60 *
+      1000
+    );
+  }
+
+  return (
+    30 *
+    1000
+  );
+}
+
+function scheduleSportsUpstream(
+  task
+) {
+  const run =
+    sportsQueue.then(
+      async () => {
+        const elapsed =
+          Date.now() -
+          sportsLastUpstreamStart;
+
+        const waitMs =
+          Math.max(
+            0,
+
+            SPORTS_MIN_UPSTREAM_INTERVAL_MS -
+            elapsed
+          );
+
+        if (
+          waitMs >
+          0
+        ) {
+          await sleep(
+            waitMs
+          );
+        }
+
+        sportsLastUpstreamStart =
+          Date.now();
+
+        return task();
+      }
+    );
+
+  sportsQueue =
+    run.catch(
+      () =>
+        undefined
+    );
+
+  return run;
+}
+
+function sportsEndpointForLeague(
+  league
+) {
+  switch (
+    league
+  ) {
+    case "NBA":
+      return "https://api.balldontlie.io/v1/games";
+
+    case "NFL":
+      return "https://api.balldontlie.io/nfl/v1/games";
+
+    case "MLB":
+      return "https://api.balldontlie.io/mlb/v1/games";
+
+    case "EPL":
+      return "https://api.balldontlie.io/epl/v2/matches";
+
+    default:
+      return null;
+  }
+}
+
+function cleanStatus(
+  value
+) {
+  const raw =
+    String(
+      value ||
+      "Unknown"
+    );
+
+  if (
+    raw ===
+    "STATUS_FULL_TIME"
+  ) {
+    return "Full Time";
+  }
+
+  if (
+    raw ===
+    "STATUS_FINAL"
+  ) {
+    return "Final";
+  }
+
+  if (
+    raw ===
+    "STATUS_SCHEDULED"
+  ) {
+    return "Scheduled";
+  }
+
+  if (
+    raw ===
+    "STATUS_IN_PROGRESS"
+  ) {
+    return "In Progress";
+  }
+
+  if (
+    raw ===
+    "STATUS_POSTPONED"
+  ) {
+    return "Postponed";
+  }
+
+  if (
+    raw ===
+      "STATUS_CANCELED" ||
+
+    raw ===
+      "STATUS_CANCELLED"
+  ) {
+    return "Canceled";
+  }
+
+  return raw
+    .replace(
+      /^STATUS_/,
+      ""
+    )
+
+    .replace(
+      /_/g,
+      " "
+    )
+
+    .replace(
+      /\b\w/g,
+
+      (
+        c
+      ) =>
+        c.toUpperCase()
+    );
+}
+
+function teamFromStandard(
+  team
+) {
+  return {
+    name:
+      team?.full_name ||
+      team?.display_name ||
+      team?.name ||
+      "Unknown Team",
+
+    abbreviation:
+      team?.abbreviation ||
+      null,
+  };
+}
+
+function buildGameSummary({
+  awayTeam,
+  homeTeam,
+  awayScore,
+  homeScore,
+  status,
+}) {
+  const scoreAvailable =
+    awayScore !== null &&
+    awayScore !== undefined &&
+    homeScore !== null &&
+    homeScore !== undefined &&
+    Number.isFinite(
+      Number(
+        awayScore
+      )
+    ) &&
+    Number.isFinite(
+      Number(
+        homeScore
+      )
+    );
+
+  if (
+    scoreAvailable
+  ) {
+    return (
+      `${awayTeam.name} ${awayScore} at ` +
+      `${homeTeam.name} ${homeScore} — ${status}`
+    );
+  }
+
+  return (
+    `${awayTeam.name} at ` +
+    `${homeTeam.name} — ${status}`
+  );
+}
+
+function normalizeNbaGame(
+  game
+) {
+  const homeTeam =
+    teamFromStandard(
+      game.home_team
+    );
+
+  const awayTeam =
+    teamFromStandard(
+      game.visitor_team
+    );
+
+  const status =
+    cleanStatus(
+      game.status
+    );
+
+  const homeScore =
+    game.home_team_score ??
+    null;
+
+  const awayScore =
+    game.visitor_team_score ??
+    null;
+
+  return {
+    id:
+      game.id,
+
+    league:
+      "NBA",
+
+    date:
+      game.datetime ||
+      game.date ||
+      "",
+
+    status,
+
+    homeTeam,
+
+    awayTeam,
+
+    homeScore,
+
+    awayScore,
+
+    venue:
+      null,
+
+    period:
+      Number.isFinite(
+        Number(
+          game.period
+        )
+      )
+        ? Number(
+            game.period
+          )
+        : null,
+
+    clock:
+      game.time ||
+      null,
+
+    postseason:
+      typeof game.postseason ===
+        "boolean"
+        ? game.postseason
+        : null,
+
+    summary:
+      buildGameSummary({
+        awayTeam,
+        homeTeam,
+        awayScore,
+        homeScore,
+        status,
+      }),
+  };
+}
+
+function normalizeNflGame(
+  game
+) {
+  const homeTeam =
+    teamFromStandard(
+      game.home_team
+    );
+
+  const awayTeam =
+    teamFromStandard(
+      game.visitor_team
+    );
+
+  const status =
+    cleanStatus(
+      game.status
+    );
+
+  const homeScore =
+    game.home_team_score ??
+    null;
+
+  const awayScore =
+    game.visitor_team_score ??
+    null;
+
+  return {
+    id:
+      game.id,
+
+    league:
+      "NFL",
+
+    date:
+      game.date ||
+      "",
+
+    status,
+
+    homeTeam,
+
+    awayTeam,
+
+    homeScore,
+
+    awayScore,
+
+    venue:
+      game.venue ||
+      null,
+
+    period:
+      null,
+
+    clock:
+      null,
+
+    postseason:
+      typeof game.postseason ===
+        "boolean"
+        ? game.postseason
+        : null,
+
+    summary:
+      game.summary ||
+      buildGameSummary({
+        awayTeam,
+        homeTeam,
+        awayScore,
+        homeScore,
+        status,
+      }),
+  };
+}
+
+function normalizeMlbGame(
+  game
+) {
+  const homeTeam =
+    teamFromStandard(
+      game.home_team
+    );
+
+  const awayTeam =
+    teamFromStandard(
+      game.away_team
+    );
+
+  const status =
+    cleanStatus(
+      game.status
+    );
+
+  const homeScore =
+    game.home_team_data
+      ?.runs ??
+    null;
+
+  const awayScore =
+    game.away_team_data
+      ?.runs ??
+    null;
+
+  return {
+    id:
+      game.id,
+
+    league:
+      "MLB",
+
+    date:
+      game.date ||
+      "",
+
+    status,
+
+    homeTeam,
+
+    awayTeam,
+
+    homeScore,
+
+    awayScore,
+
+    venue:
+      game.venue ||
+      null,
+
+    period:
+      Number.isFinite(
+        Number(
+          game.period
+        )
+      )
+        ? Number(
+            game.period
+          )
+        : null,
+
+    clock:
+      game.display_clock ||
+      null,
+
+    postseason:
+      typeof game.postseason ===
+        "boolean"
+        ? game.postseason
+        : null,
+
+    summary:
+      buildGameSummary({
+        awayTeam,
+        homeTeam,
+        awayScore,
+        homeScore,
+        status,
+      }),
+  };
+}
+
+function normalizeEplMatch(
+  match
+) {
+  const names =
+    String(
+      match.name ||
+      ""
+    )
+      .split(
+        " at "
+      );
+
+  const abbreviations =
+    String(
+      match.short_name ||
+      ""
+    )
+      .split(
+        " @ "
+      );
+
+  const awayTeam = {
+    name:
+      names[0] ||
+      "Away Team",
+
+    abbreviation:
+      abbreviations[0] ||
+      null,
+  };
+
+  const homeTeam = {
+    name:
+      names[1] ||
+      "Home Team",
+
+    abbreviation:
+      abbreviations[1] ||
+      null,
+  };
+
+  const status =
+    cleanStatus(
+      match.status_detail ||
+      match.status
+    );
+
+  const homeScore =
+    match.home_score ??
+    null;
+
+  const awayScore =
+    match.away_score ??
+    null;
+
+  return {
+    id:
+      match.id,
+
+    league:
+      "EPL",
+
+    date:
+      match.date ||
+      "",
+
+    status,
+
+    homeTeam,
+
+    awayTeam,
+
+    homeScore,
+
+    awayScore,
+
+    venue:
+      match.venue_name ||
+      null,
+
+    period:
+      null,
+
+    clock:
+      null,
+
+    postseason:
+      null,
+
+    summary:
+      buildGameSummary({
+        awayTeam,
+        homeTeam,
+        awayScore,
+        homeScore,
+        status,
+      }),
+  };
+}
+
+function normalizeSportsData(
+  league,
+  rows
+) {
+  if (
+    league ===
+    "NBA"
+  ) {
+    return rows.map(
+      normalizeNbaGame
+    );
+  }
+
+  if (
+    league ===
+    "NFL"
+  ) {
+    return rows.map(
+      normalizeNflGame
+    );
+  }
+
+  if (
+    league ===
+    "MLB"
+  ) {
+    return rows.map(
+      normalizeMlbGame
+    );
+  }
+
+  if (
+    league ===
+    "EPL"
+  ) {
+    return rows.map(
+      normalizeEplMatch
+    );
+  }
+
+  return [];
+}
+
+function gameMatchesTeam(
+  game,
+  team
+) {
+  if (
+    !team
+  ) {
+    return true;
+  }
+
+  const needle =
+    team.toLowerCase();
+
+  const values = [
+    game.homeTeam
+      ?.name,
+
+    game.homeTeam
+      ?.abbreviation,
+
+    game.awayTeam
+      ?.name,
+
+    game.awayTeam
+      ?.abbreviation,
+  ]
+    .filter(
+      Boolean
+    )
+
+    .map(
+      (
+        value
+      ) =>
+        String(
+          value
+        )
+          .toLowerCase()
+    );
+
+  return values.some(
+    (
+      value
+    ) =>
+      value.includes(
+        needle
+      )
+  );
+}
+
+function trimSportsCache() {
+  if (
+    sportsCache.size <=
+    200
+  ) {
+    return;
+  }
+
+  const entries =
+    [
+      ...sportsCache.entries(),
+    ]
+      .sort(
+        (
+          a,
+          b
+        ) =>
+          a[1].storedAt -
+          b[1].storedAt
+      );
+
+  for (
+    const [
+      key,
+    ] of
+      entries.slice(
+        0,
+
+        sportsCache.size -
+        150
+      )
+  ) {
+    sportsCache.delete(
+      key
+    );
+  }
+}
+
+async function fetchSportsGames(
+  league,
+  date
+) {
+  const cacheKey =
+    `${league}|${date}`;
+
+  const cached =
+    sportsCache.get(
+      cacheKey
+    );
+
+  if (
+    cached &&
+    cached.expiresAt >
+      Date.now()
+  ) {
+    return {
+      games:
+        cached.games,
+
+      cached:
+        true,
+
+      stale:
+        false,
+
+      retrievedAt:
+        cached.retrievedAt,
+    };
+  }
+
+  const endpoint =
+    sportsEndpointForLeague(
+      league
+    );
+
+  try {
+    const response =
+      await scheduleSportsUpstream(
+        () =>
+          axios.get(
+            endpoint,
+
+            {
+              timeout:
+                15000,
+
+              params: {
+                "dates[]":
+                  date,
+
+                per_page:
+                  100,
+              },
+
+              headers: {
+                Authorization:
+                  BALLDONTLIE_API_KEY,
+
+                Accept:
+                  "application/json",
+
+                "User-Agent":
+                  `x402-agent-data-api/${VERSION}`,
+              },
+            }
+          )
+      );
+
+    const rows =
+      Array.isArray(
+        response.data
+          ?.data
+      )
+        ? response.data
+            .data
+        : [];
+
+    const games =
+      normalizeSportsData(
+        league,
+        rows
+      );
+
+    const retrievedAt =
+      new Date()
+        .toISOString();
+
+    sportsCache.set(
+      cacheKey,
+
+      {
+        games,
+
+        retrievedAt,
+
+        storedAt:
+          Date.now(),
+
+        expiresAt:
+          Date.now() +
+          sportsCacheTtlMs(
+            date
+          ),
+      }
+    );
+
+    trimSportsCache();
+
+    return {
+      games,
+
+      cached:
+        false,
+
+      stale:
+        false,
+
+      retrievedAt,
+    };
+  } catch (
+    error
+  ) {
+    if (
+      cached
+    ) {
+      console.warn(
+        `Sports upstream failed for ${league} ${date}; serving stale cache.`
+      );
+
+      return {
+        games:
+          cached.games,
+
+        cached:
+          true,
+
+        stale:
+          true,
+
+        retrievedAt:
+          cached.retrievedAt,
+      };
+    }
+
+    throw error;
+  }
+}
+
+// ============================================================================
+// TOOL 10 - SPORTS GAME BRIEF
+// ============================================================================
+
+app.get(
+  "/api/sports-game-brief",
+
+  async (
+    req,
+    res
+  ) => {
+    const league =
+      String(
+        req.query.league ||
+        ""
+      )
+        .trim()
+        .toUpperCase();
+
+    const date =
+      String(
+        req.query.date ||
+        todayUtc()
+      )
+        .trim();
+
+    const team =
+      String(
+        req.query.team ||
+        ""
+      )
+        .trim();
+
+    const limitRaw =
+      req.query.limit ===
+      undefined
+        ? 10
+        : Number(
+            req.query.limit
+          );
+
+    if (
+      !SPORTS_SUPPORTED.has(
+        league
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "league must be one of NBA, NFL, MLB, or EPL.",
+
+          example:
+            "/api/sports-game-brief?league=NFL&date=2026-08-16&team=KC",
+        });
+    }
+
+    if (
+      !validIsoDate(
+        date
+      )
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "date must be formatted as YYYY-MM-DD.",
+        });
+    }
+
+    if (
+      team.length >
+      80
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "team filter must be 80 characters or fewer.",
+        });
+    }
+
+    if (
+      !Number.isFinite(
+        limitRaw
+      ) ||
+
+      limitRaw <
+        1 ||
+
+      limitRaw >
+        20
+    ) {
+      return res
+        .status(400)
+        .json({
+          error:
+            "limit must be a number from 1 to 20.",
+        });
+    }
+
+    const limit =
+      Math.floor(
+        limitRaw
+      );
+
+    try {
+      const result =
+        await fetchSportsGames(
+          league,
+          date
+        );
+
+      const games =
+        result.games
+          .filter(
+            (
+              game
+            ) =>
+              gameMatchesTeam(
+                game,
+                team
+              )
+          )
+
+          .slice(
+            0,
+            limit
+          );
+
+      return res.json({
+        status:
+          "success",
+
+        payment:
+          "verified",
+
+        source:
+          "BALLDONTLIE",
+
+        league,
+
+        date,
+
+        teamFilter:
+          team ||
+          null,
+
+        count:
+          games.length,
+
+        cached:
+          result.cached,
+
+        stale:
+          result.stale,
+
+        retrievedAt:
+          result.retrievedAt,
+
+        games,
+      });
+    } catch (
+      error
+    ) {
+      const upstreamStatus =
+        error.response
+          ?.status;
+
+      const upstreamData =
+        error.response
+          ?.data;
+
+      console.error(
+        "Sports game brief error:",
+        upstreamData ||
+          error.message
+      );
+
+      if (
+        upstreamStatus ===
+        401
+      ) {
+        return res
+          .status(503)
+          .json({
+            error:
+              "Sports data provider authentication failed.",
+          });
+      }
+
+      if (
+        upstreamStatus ===
+        403
+      ) {
+        return res
+          .status(503)
+          .json({
+            error:
+              `Sports data for ${league} is not available on the current BALLDONTLIE plan.`,
+          });
+      }
+
+      if (
+        upstreamStatus ===
+        429
+      ) {
+        return res
+          .status(503)
+          .json({
+            error:
+              "Sports data provider is temporarily rate-limited. Please retry shortly.",
+
+            retryAfterSeconds:
+              15,
+          });
+      }
+
+      return res
+        .status(502)
+        .json({
+          error:
+            "Failed to retrieve sports game data.",
+        });
+    }
+  }
+);
+
+// ============================================================================
 // 404
 // ============================================================================
 
@@ -5403,9 +6433,7 @@ app.use(
     res
   ) => {
     return res
-      .status(
-        404
-      )
+      .status(404)
       .json({
         error:
           "Endpoint not found.",
@@ -5423,6 +6451,7 @@ app.use(
           "GET /api/crypto-market",
           "GET /api/sec-company",
           "POST /api/website-research",
+          "GET /api/sports-game-brief",
         ],
       });
   }
@@ -5441,7 +6470,6 @@ app.use(
   ) => {
     console.error(
       "Unhandled server error:",
-
       error
     );
 
@@ -5454,9 +6482,7 @@ app.use(
     }
 
     return res
-      .status(
-        500
-      )
+      .status(500)
       .json({
         error:
           "Internal server error.",
@@ -5527,6 +6553,14 @@ app.listen(
       "Crypto Market Source: Coinbase Exchange"
     );
 
+    console.log(
+      "Sports Source: BALLDONTLIE"
+    );
+
+    console.log(
+      "Sports Leagues: NBA, NFL, MLB, EPL"
+    );
+
     console.log("");
 
     console.log(
@@ -5567,6 +6601,10 @@ app.listen(
 
     console.log(
       "POST /api/website-research   $0.10"
+    );
+
+    console.log(
+      "GET  /api/sports-game-brief  $0.05"
     );
 
     console.log(
