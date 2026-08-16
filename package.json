@@ -1,6 +1,6 @@
 {
   "name": "x402-trends-server",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Production x402 paid API server on Base Mainnet",
   "main": "server.js",
   "type": "module",
@@ -14,6 +14,8 @@
     "@coinbase/cdp-sdk": "latest",
     "@x402/core": "^2.22.0",
     "@x402/evm": "^2.22.0",
+    "@x402/svm": "^2.22.0",
+    "@x402/extensions": "^2.22.0",
     "@x402/express": "^2.22.0",
     "axios": "^1.19.0",
     "express": "^5.2.1"
