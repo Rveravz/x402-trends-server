@@ -1,0 +1,158 @@
+name: Validate x402 endpoints
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate live Base endpoints
+        shell: bash
+        run: |
+          node <<'NODE'
+          const SELLER = "0xF61F957D9aC432309219549b1Ae79Ae8b7C71fF5".toLowerCase();
+          const NETWORK = "eip155:8453";
+          const BASE = "https://x402-trends-server.onrender.com";
+
+          const endpoints = [
+            {
+              name: "Base wallet balance",
+              url: `${BASE}/api/base-wallet-balance?address=0xF61F957D9aC432309219549b1Ae79Ae8b7C71fF5`,
+              method: "GET",
+              expectedAmount: "3000",
+              validateResource: `${BASE}/api/base-wallet-balance`,
+            },
+            {
+              name: "Base transaction status",
+              url: `${BASE}/api/base-tx-status?hash=0x79499f3edcbcfd1a561ed4a51681f7d7ef9e0f1183dec7ee36f5b391dec2715d`,
+              method: "GET",
+              expectedAmount: "5000",
+              validateResource: `${BASE}/api/base-tx-status`,
+            },
+          ];
+
+          function decodePaymentRequired(value) {
+            if (!value) return null;
+            try {
+              return JSON.parse(Buffer.from(value, "base64").toString("utf8"));
+            } catch {
+              try {
+                return JSON.parse(value);
+              } catch {
+                return null;
+              }
+            }
+          }
+
+          let failed = false;
+
+          for (const ep of endpoints) {
+            console.log(`\n=== ${ep.name} ===`);
+
+            const response = await fetch(ep.url, {
+              method: ep.method,
+              redirect: "manual",
+            });
+
+            console.log(`HTTP: ${response.status}`);
+
+            if (response.status !== 402) {
+              console.error(`FAIL: expected HTTP 402, got ${response.status}`);
+              failed = true;
+              continue;
+            }
+
+            const header = response.headers.get("payment-required");
+            const payment = decodePaymentRequired(header);
+
+            if (!payment) {
+              console.error("FAIL: PAYMENT-REQUIRED header missing or could not be parsed.");
+              failed = true;
+              continue;
+            }
+
+            console.log(`x402 version: ${payment.x402Version}`);
+
+            const accepts = Array.isArray(payment.accepts) ? payment.accepts : [];
+            const req = accepts.find((x) => x.network === NETWORK && x.scheme === "exact");
+
+            if (!req) {
+              console.error("FAIL: Base Mainnet exact payment requirement not found.");
+              failed = true;
+              continue;
+            }
+
+            console.log(`Network: ${req.network}`);
+            console.log(`Amount: ${req.amount}`);
+            console.log(`PayTo: ${req.payTo}`);
+            console.log(`Asset: ${req.asset}`);
+
+            if (String(req.payTo || "").toLowerCase() !== SELLER) {
+              console.error("FAIL: seller wallet does not match expected wallet.");
+              failed = true;
+            }
+
+            if (String(req.amount) !== ep.expectedAmount) {
+              console.error(`FAIL: expected amount ${ep.expectedAmount}, got ${req.amount}`);
+              failed = true;
+            }
+
+            if (payment.x402Version !== 2) {
+              console.error(`FAIL: expected x402 version 2, got ${payment.x402Version}`);
+              failed = true;
+            }
+
+            const bazaar = payment.extensions?.bazaar;
+            if (!bazaar) {
+              console.error("FAIL: Bazaar extension missing.");
+              failed = true;
+            } else {
+              console.log("Bazaar extension: present");
+            }
+
+            try {
+              const validateResponse = await fetch(
+                "https://api.cdp.coinbase.com/platform/v2/x402/validate",
+                {
+                  method: "POST",
+                  headers: { "content-type": "application/json" },
+                  body: JSON.stringify({
+                    resource: ep.validateResource,
+                    method: ep.method,
+                  }),
+                }
+              );
+
+              const validateText = await validateResponse.text();
+              console.log(`Coinbase validate HTTP: ${validateResponse.status}`);
+              console.log(`Coinbase validate body: ${validateText}`);
+
+              if (validateResponse.ok) {
+                try {
+                  const validation = JSON.parse(validateText);
+                  if (validation.valid !== true) {
+                    console.error("FAIL: Coinbase validation did not return valid=true.");
+                    failed = true;
+                  }
+                } catch {
+                  console.error("FAIL: Coinbase validation response was not JSON.");
+                  failed = true;
+                }
+              } else {
+                console.warn("WARNING: Coinbase /validate endpoint was unavailable; direct x402 checks still ran.");
+              }
+            } catch (error) {
+              console.warn(`WARNING: Coinbase validation request failed: ${error.message}`);
+            }
+          }
+
+          if (failed) {
+            console.error("\nOne or more x402 validation checks failed.");
+            process.exit(1);
+          }
+
+          console.log("\nAll direct x402 validation checks passed.");
+          NODE
