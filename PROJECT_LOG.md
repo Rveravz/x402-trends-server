@@ -139,20 +139,37 @@ Added `.gitignore` to reduce the risk of accidentally committing `.env` files, l
 
 The repository documentation intentionally does not contain private API keys, secrets, seed phrases, or private wallet credentials.
 
+### Machine discovery upgrade
+
+Added `llms.txt`, `agents.json`, and `discovery-bootstrap.js` to make the service easier for AI agents, crawlers, and x402 directories to understand without reading the full source code.
+
+Production startup now preloads the discovery bootstrap before `server.js`, exposing free machine-readable routes:
+
+- `GET /llms.txt`
+- `GET /agents.json`
+- `GET /.well-known/agents.json`
+- `GET /.well-known/x402.json`
+- `GET /.well-known/x402`
+
+The manifests advertise the live Base URL, x402 v2, Base Mainnet, USDC, OpenAPI/health links, repository, Bazaar availability, all paid endpoints, prices, and agent-use descriptions. These routes do not charge buyers and do not alter the paid endpoint logic.
+
 ### Distribution research
 
 Official x402 ecosystem materials identify community and discovery surfaces including Coinbase Bazaar, the x402 Foundation community, x402scan, Agentic.Market, Pay.sh, and Ampersend. The project domain/repository was not found in a general web search for those public directory pages at this checkpoint.
+
+An active community `awesome-x402` repository was also identified as a legitimate listing target. The connected GitHub integration can read that repository but cannot create issues there because the app lacks write permission on third-party repositories, so submission will require another supported distribution route or a user-performed contribution step.
 
 Distribution policy: favor legitimate directory/discovery listings and relevant developer communities. Avoid spam, mass unsolicited outreach, fake usage, and repeated self-payments intended to manufacture traction.
 
 ## Current priority queue
 
-1. Confirm the two new Base endpoints become indexed/discoverable in Bazaar.
-2. Measure search placement and unique-buyer traction without repeated self-payments.
-3. Research a viable web-search/research endpoint with acceptable commercial terms and low upstream cost.
-4. Evaluate a price reduction or feature upgrade for `/api/crypto-market`.
-5. Improve external discoverability through legitimate x402 ecosystem directories and developer communities.
-6. Continue scanning Bazaar for categories with high unique-buyer demand and low implementation cost.
+1. Confirm the new machine-discovery routes deploy successfully on Render.
+2. Confirm the two new Base endpoints become indexed/discoverable in Bazaar.
+3. Measure search placement and unique-buyer traction without repeated self-payments.
+4. Research a viable web-search/research endpoint with acceptable commercial terms and low upstream cost.
+5. Evaluate a price reduction or feature upgrade for `/api/crypto-market`.
+6. Improve external discoverability through legitimate x402 ecosystem directories and developer communities.
+7. Continue scanning Bazaar for categories with high unique-buyer demand and low implementation cost.
 
 ## Change-control rule
 
