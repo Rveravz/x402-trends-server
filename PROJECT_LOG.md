@@ -106,18 +106,24 @@ An hourly project monitor is enabled. It checks for meaningful changes in:
 - endpoint failures or deployment issues
 - new endpoint opportunities based on current x402/Bazaar demand
 - competitor pricing and free/low-cost upstream APIs
+- x402 ecosystem directories and legitimate public distribution opportunities
+- whether the live domain/repository starts appearing in public discovery indexes
 
 It should notify only when there is something actionable or noteworthy.
 
 ### Repository documentation
 
-Added `README.md` with:
+Added and improved `README.md` with:
 
-- live API and network information
+- live API and OpenAPI links
+- x402/Base/USDC/version badges
+- featured high-value endpoints
 - all paid endpoints and prices
-- free endpoint list
-- quick request examples
+- free discovery endpoint list
+- agent-focused request examples
 - x402 payment-flow overview
+- Bazaar/discovery explanation
+- endpoint-request call to action
 - upstream data providers
 - local-development instructions
 - production environment-variable names
@@ -125,7 +131,19 @@ Added `README.md` with:
 - validation workflow notes
 - project strategy and roadmap summary
 
-The README intentionally does not contain private API keys, secrets, seed phrases, or private wallet credentials.
+Added `CONTRIBUTING.md` to explain what makes a useful paid endpoint and how to request or contribute one.
+
+Added `.github/ISSUE_TEMPLATE/endpoint-request.yml` so visitors can submit structured endpoint ideas and use cases.
+
+Added `.gitignore` to reduce the risk of accidentally committing `.env` files, local secrets, logs, editor data, or `node_modules`.
+
+The repository documentation intentionally does not contain private API keys, secrets, seed phrases, or private wallet credentials.
+
+### Distribution research
+
+Official x402 ecosystem materials identify community and discovery surfaces including Coinbase Bazaar, the x402 Foundation community, x402scan, Agentic.Market, Pay.sh, and Ampersend. The project domain/repository was not found in a general web search for those public directory pages at this checkpoint.
+
+Distribution policy: favor legitimate directory/discovery listings and relevant developer communities. Avoid spam, mass unsolicited outreach, fake usage, and repeated self-payments intended to manufacture traction.
 
 ## Current priority queue
 
@@ -133,7 +151,8 @@ The README intentionally does not contain private API keys, secrets, seed phrase
 2. Measure search placement and unique-buyer traction without repeated self-payments.
 3. Research a viable web-search/research endpoint with acceptable commercial terms and low upstream cost.
 4. Evaluate a price reduction or feature upgrade for `/api/crypto-market`.
-5. Continue scanning Bazaar for categories with high unique-buyer demand and low implementation cost.
+5. Improve external discoverability through legitimate x402 ecosystem directories and developer communities.
+6. Continue scanning Bazaar for categories with high unique-buyer demand and low implementation cost.
 
 ## Change-control rule
 
