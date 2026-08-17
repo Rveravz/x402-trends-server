@@ -1,0 +1,34 @@
+{
+  "name": "x402 Agent Data API",
+  "description": "Pay-per-request structured data tools for AI agents using x402 on Base Mainnet.",
+  "version": "2.6.0",
+  "baseUrl": "https://x402-trends-server.onrender.com",
+  "protocol": "x402",
+  "x402Version": 2,
+  "network": "eip155:8453",
+  "networkName": "Base Mainnet",
+  "paymentToken": "USDC",
+  "openapi": "https://x402-trends-server.onrender.com/openapi.json",
+  "llms": "https://x402-trends-server.onrender.com/llms.txt",
+  "health": "https://x402-trends-server.onrender.com/health",
+  "repository": "https://github.com/Rveravz/x402-trends-server",
+  "discovery": {
+    "bazaar": true,
+    "manifest": "https://x402-trends-server.onrender.com/.well-known/x402.json",
+    "agentManifest": "https://x402-trends-server.onrender.com/.well-known/agents.json"
+  },
+  "endpoints": [
+    {"method":"POST","path":"/api/scrape","price":"$0.005","description":"Extract clean readable text from a public webpage.","paymentRequired":true},
+    {"method":"GET","path":"/api/exchange-rate","price":"$0.01","description":"Convert fiat currencies using current reference rates.","paymentRequired":true},
+    {"method":"GET","path":"/api/trends","price":"$0.02","description":"Get the latest spaceflight and space-industry news.","paymentRequired":true},
+    {"method":"GET","path":"/api/weather","price":"$0.02","description":"Get U.S. NOAA/NWS forecasts by latitude and longitude.","paymentRequired":true},
+    {"method":"POST","path":"/api/url-analyze","price":"$0.03","description":"Analyze public webpage metadata, headings, links, emails, and social profiles.","paymentRequired":true},
+    {"method":"POST","path":"/api/parse-receipt","price":"$0.05","description":"Parse raw receipt text into structured purchase data.","paymentRequired":true},
+    {"method":"GET","path":"/api/crypto-market","price":"$0.05","description":"Get live Coinbase Exchange crypto ticker and market statistics.","paymentRequired":true},
+    {"method":"GET","path":"/api/sec-company","price":"$0.05","description":"Get SEC EDGAR company information and recent filings by ticker.","paymentRequired":true},
+    {"method":"POST","path":"/api/website-research","price":"$0.10","description":"Create a detailed public website research snapshot.","paymentRequired":true},
+    {"method":"GET","path":"/api/sports-game-brief","price":"$0.05","description":"Get normalized NBA, NFL, MLB, and EPL schedules, scores, and game briefs.","paymentRequired":true},
+    {"method":"GET","path":"/api/base-wallet-balance","price":"$0.003","description":"Get Base Mainnet ETH and USDC wallet balances.","paymentRequired":true},
+    {"method":"GET","path":"/api/base-tx-status","price":"$0.005","description":"Get Base transaction status, confirmations, gas, and receipt details.","paymentRequired":true}
+  ]
+}
