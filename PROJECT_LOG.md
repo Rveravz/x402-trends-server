@@ -109,6 +109,24 @@ An hourly project monitor is enabled. It checks for meaningful changes in:
 
 It should notify only when there is something actionable or noteworthy.
 
+### Repository documentation
+
+Added `README.md` with:
+
+- live API and network information
+- all paid endpoints and prices
+- free endpoint list
+- quick request examples
+- x402 payment-flow overview
+- upstream data providers
+- local-development instructions
+- production environment-variable names
+- Render deployment notes
+- validation workflow notes
+- project strategy and roadmap summary
+
+The README intentionally does not contain private API keys, secrets, seed phrases, or private wallet credentials.
+
 ## Current priority queue
 
 1. Confirm the two new Base endpoints become indexed/discoverable in Bazaar.
