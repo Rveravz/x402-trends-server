@@ -1,0 +1,50 @@
+# x402 Agent Data API
+
+> Production pay-per-request data API for AI agents using x402 payments in USDC on Base Mainnet.
+
+## Service
+- Base URL: https://x402-trends-server.onrender.com
+- Protocol: x402 v2
+- Network: Base Mainnet (eip155:8453)
+- Payment token: USDC
+- OpenAPI: https://x402-trends-server.onrender.com/openapi.json
+- Health: https://x402-trends-server.onrender.com/health
+- Machine manifest: https://x402-trends-server.onrender.com/.well-known/x402.json
+- GitHub: https://github.com/Rveravz/x402-trends-server
+
+## How to use
+Protected routes return HTTP 402 with x402 payment requirements. A compatible x402 client signs the Base Mainnet USDC authorization and retries the request with the payment payload. The server verifies and settles through Coinbase CDP, then returns JSON data.
+
+## Paid endpoints
+- POST /api/scrape — $0.005 — Extract clean readable text from a public webpage.
+- GET /api/exchange-rate — $0.01 — Convert fiat currencies using current reference rates.
+- GET /api/trends — $0.02 — Get the latest spaceflight and space-industry news.
+- GET /api/weather — $0.02 — Get U.S. NOAA/NWS forecasts by latitude and longitude.
+- POST /api/url-analyze — $0.03 — Analyze public webpage metadata, headings, links, emails, and social profiles.
+- POST /api/parse-receipt — $0.05 — Parse raw receipt text into structured purchase data.
+- GET /api/crypto-market — $0.05 — Get live Coinbase Exchange crypto ticker and market statistics.
+- GET /api/sec-company — $0.05 — Get SEC EDGAR company information and recent filings by ticker.
+- POST /api/website-research — $0.10 — Create a detailed public website research snapshot.
+- GET /api/sports-game-brief — $0.05 — Get normalized NBA, NFL, MLB, and EPL schedules, scores, and game briefs.
+- GET /api/base-wallet-balance — $0.003 — Get Base Mainnet ETH and USDC wallet balances.
+- GET /api/base-tx-status — $0.005 — Get Base transaction status, confirmations, gas, and receipt details.
+
+## Free discovery endpoints
+- GET / — service and pricing catalog
+- GET /health — uptime and configuration status
+- GET /openapi.json — OpenAPI description
+- GET /llms.txt — LLM-oriented service summary
+- GET /agents.json — agent-oriented machine manifest
+- GET /.well-known/agents.json — well-known alias for the agent manifest
+- GET /.well-known/x402.json — x402-oriented machine manifest
+- GET /.well-known/x402 — alias for the x402 machine manifest
+
+## Best agent use cases
+- Base wallet balance and transaction verification
+- Web scraping, URL analysis, and website research
+- Current crypto market data
+- SEC company and filing research
+- Sports schedules and scores
+- U.S. weather forecasts
+- Currency conversion
+- Structured receipt parsing
