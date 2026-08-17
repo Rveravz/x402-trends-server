@@ -1,17 +1,24 @@
 # x402 Agent Data API
 
+![x402](https://img.shields.io/badge/x402-v2-111827)
+![Network](https://img.shields.io/badge/network-Base%20Mainnet-0052FF)
+![Payment](https://img.shields.io/badge/payment-USDC-2775CA)
+![Version](https://img.shields.io/badge/version-2.6.0-2ea44f)
+![Node](https://img.shields.io/badge/node-%3E%3D22-339933)
+
 Production pay-per-request API server built for AI agents using the x402 payment protocol on Base Mainnet.
 
 **Live API:** https://x402-trends-server.onrender.com  
+**OpenAPI:** https://x402-trends-server.onrender.com/openapi.json  
 **Network:** Base Mainnet (`eip155:8453`)  
 **Payment token:** USDC  
 **Current server version:** `2.6.0`
 
-## What this project does
+## Why this exists
 
-This server exposes small, agent-friendly data tools that can be purchased per request with x402. The goal is to provide useful current data without requiring every buyer to maintain separate API accounts, subscriptions, or credentials.
+AI agents often need one small piece of current data without maintaining another account, subscription, API key, billing relationship, or long-lived credential. This service packages useful data into small structured endpoints that can be purchased per request with x402.
 
-The project is designed around:
+The project is optimized around:
 
 - low-cost pay-per-call access
 - Base Mainnet USDC payments
@@ -19,6 +26,41 @@ The project is designed around:
 - Coinbase Bazaar discovery metadata
 - structured JSON responses for AI agents
 - inexpensive or free upstream data sources where practical
+- endpoint selection based on real buyer demand rather than endpoint count
+
+## Featured agent tools
+
+### Base wallet balance — `$0.003`
+
+```text
+GET /api/base-wallet-balance?address=0x...
+```
+
+Returns Base Mainnet ETH and USDC balances plus the current block number.
+
+### Base transaction status — `$0.005`
+
+```text
+GET /api/base-tx-status?hash=0x...
+```
+
+Returns transaction state, confirmations, block, sender/recipient, value, gas usage, receipt details, and a Basescan URL.
+
+### Website research — `$0.10`
+
+```text
+POST /api/website-research
+```
+
+Returns a structured research snapshot for a public website.
+
+### Sports game brief — `$0.05`
+
+```text
+GET /api/sports-game-brief?league=MLB&date=2026-08-16&limit=5
+```
+
+Supports NBA, NFL, MLB, and EPL schedules, scores, and game briefs.
 
 ## Paid endpoints
 
@@ -37,7 +79,7 @@ The project is designed around:
 | GET | `/api/base-wallet-balance` | $0.003 | Base Mainnet ETH and USDC wallet balances |
 | GET | `/api/base-tx-status` | $0.005 | Base transaction status, confirmations, gas, and receipt data |
 
-## Free endpoints
+## Free discovery endpoints
 
 These routes do not require payment:
 
@@ -45,30 +87,22 @@ These routes do not require payment:
 - `GET /health` — health/status information
 - `GET /openapi.json` — OpenAPI description
 
-## Quick examples
+## For AI agents
 
-A normal unpaid request to a protected endpoint returns HTTP `402 Payment Required` with x402 payment requirements.
+A normal unpaid request to a protected route returns HTTP `402 Payment Required` with x402 payment requirements. A compatible x402 client can read that challenge, authorize the Base USDC payment, retry the request, and receive JSON.
+
+Probe a protected endpoint without making a payment:
 
 ```bash
 curl -i "https://x402-trends-server.onrender.com/api/base-wallet-balance?address=0xF61F957D9aC432309219549b1Ae79Ae8b7C71fF5"
 ```
 
-Example sports request:
-
-```text
-GET /api/sports-game-brief?league=MLB&date=2026-08-16&limit=5
-```
-
-Example crypto request:
+Other examples:
 
 ```text
 GET /api/crypto-market?pair=BTC-USD
-```
-
-Example SEC request:
-
-```text
 GET /api/sec-company?ticker=TSLA
+GET /api/sports-game-brief?league=NFL&date=2026-09-13&limit=5
 ```
 
 ## x402 payment flow
@@ -81,6 +115,22 @@ GET /api/sec-company?ticker=TSLA
 6. The server returns the requested JSON data.
 
 No traditional API subscription is required for the buyer.
+
+## Discovery
+
+Paid routes declare Coinbase Bazaar discovery metadata with structured inputs, outputs, descriptions, and examples. The project is designed to be found by agents searching for capabilities rather than by a human memorizing endpoint names.
+
+The broader x402 ecosystem also maintains public discovery surfaces such as x402scan, Agentic.Market, Pay.sh, and Ampersend. The project is actively being optimized for legitimate discovery and real external usage rather than synthetic self-traffic.
+
+## Request an endpoint
+
+Have an agent workflow that needs a paid capability? Open an **Endpoint request** issue:
+
+https://github.com/Rveravz/x402-trends-server/issues/new/choose
+
+Strong requests explain the agent use case, example input/output, upstream source, and why pay-per-call is useful.
+
+See [`CONTRIBUTING.md`](CONTRIBUTING.md) for contribution guidelines.
 
 ## Data providers
 
