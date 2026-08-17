@@ -1,0 +1,48 @@
+name: Endpoint request
+description: Suggest a paid API capability that would be useful to AI agents
+title: "[Endpoint] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an endpoint. Strong ideas are agent-useful, structured, reliable, and inexpensive to operate.
+  - type: input
+    id: capability
+    attributes:
+      label: What should the endpoint do?
+      placeholder: e.g. Resolve a Base wallet address to token balances and recent activity
+    validations:
+      required: true
+  - type: textarea
+    id: use_case
+    attributes:
+      label: Agent use case
+      description: Who would call this and what decision/workflow would it support?
+    validations:
+      required: true
+  - type: textarea
+    id: input
+    attributes:
+      label: Example input
+      placeholder: GET /api/example?address=0x...
+  - type: textarea
+    id: output
+    attributes:
+      label: Example output
+      description: A short JSON example is ideal.
+  - type: input
+    id: source
+    attributes:
+      label: Possible upstream data source
+      placeholder: Public API, official dataset, blockchain RPC, etc.
+  - type: input
+    id: price
+    attributes:
+      label: Suggested price per call
+      placeholder: $0.005
+  - type: textarea
+    id: why_pay
+    attributes:
+      label: Why would an agent pay for this?
+      description: Explain why pay-per-call is better than the buyer maintaining its own integration or subscription.
