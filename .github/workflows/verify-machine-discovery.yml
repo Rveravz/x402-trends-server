@@ -1,0 +1,83 @@
+name: Verify machine discovery
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for Render and verify discovery routes
+        shell: bash
+        run: |
+          node <<'NODE'
+          const BASE = "https://x402-trends-server.onrender.com";
+          const MAX_ATTEMPTS = 40;
+          const WAIT_MS = 15_000;
+
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+          async function probe() {
+            const llms = await fetch(`${BASE}/llms.txt`, { redirect: "manual" });
+            const manifest = await fetch(`${BASE}/.well-known/x402.json`, { redirect: "manual" });
+            const agents = await fetch(`${BASE}/agents.json`, { redirect: "manual" });
+            const health = await fetch(`${BASE}/health`, { redirect: "manual" });
+
+            if (!llms.ok || !manifest.ok || !agents.ok || !health.ok) {
+              throw new Error(
+                `status llms=${llms.status} manifest=${manifest.status} agents=${agents.status} health=${health.status}`
+              );
+            }
+
+            const llmsText = await llms.text();
+            const manifestJson = await manifest.json();
+            const agentsJson = await agents.json();
+            const healthJson = await health.json();
+
+            if (!llmsText.includes("x402 Agent Data API") || !llmsText.includes("/api/base-wallet-balance")) {
+              throw new Error("llms.txt content is incomplete");
+            }
+
+            if (manifestJson?.protocol !== "x402" || manifestJson?.network !== "eip155:8453") {
+              throw new Error("x402 manifest protocol/network mismatch");
+            }
+
+            if (!Array.isArray(manifestJson?.endpoints) || manifestJson.endpoints.length < 12) {
+              throw new Error("x402 manifest endpoint list is incomplete");
+            }
+
+            if (agentsJson?.protocol !== "x402" || !Array.isArray(agentsJson?.endpoints)) {
+              throw new Error("agents.json is incomplete");
+            }
+
+            if (healthJson?.status !== "ok") {
+              throw new Error("health endpoint did not report ok");
+            }
+
+            console.log(`llms.txt: ${llms.status}`);
+            console.log(`x402 manifest: ${manifest.status}`);
+            console.log(`agents.json: ${agents.status}`);
+            console.log(`health: ${health.status}`);
+            console.log(`manifest endpoints: ${manifestJson.endpoints.length}`);
+            console.log("Machine discovery verification passed.");
+          }
+
+          let lastError;
+
+          for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+            try {
+              console.log(`Attempt ${attempt}/${MAX_ATTEMPTS}`);
+              await probe();
+              process.exit(0);
+            } catch (error) {
+              lastError = error;
+              console.log(`Not ready: ${error.message}`);
+              if (attempt < MAX_ATTEMPTS) await sleep(WAIT_MS);
+            }
+          }
+
+          console.error(`Machine discovery did not become ready: ${lastError?.message || "unknown error"}`);
+          process.exit(1);
+          NODE
