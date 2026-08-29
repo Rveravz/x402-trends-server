@@ -5,7 +5,8 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "start": "node --import ./discovery-bootstrap.js server.js"
+    "start": "node --import ./discovery-bootstrap.js server.js",
+    "verify:x402": "node verify-x402-challenges.js"
   },
   "engines": {
     "node": ">=22"
