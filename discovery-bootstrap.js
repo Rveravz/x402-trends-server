@@ -19,6 +19,10 @@ const endpoints = [
   { method: "GET", path: "/api/base-tx-status", price: "$0.005", description: "Get Base transaction status, confirmations, gas, and receipt details." },
 ];
 
+const postOnlyPaths = new Set(
+  endpoints.filter((endpoint) => endpoint.method === "POST").map((endpoint) => endpoint.path)
+);
+
 const llmsText = `# x402 Agent Data API
 
 > Production pay-per-request data API for AI agents using x402 payments in USDC on Base Mainnet.
@@ -35,6 +39,8 @@ const llmsText = `# x402 Agent Data API
 
 ## How to use
 Protected routes return HTTP 402 with x402 payment requirements. A compatible x402 client signs the Base Mainnet USDC authorization and retries the request with the payment payload. The server verifies and settles through Coinbase CDP, then returns JSON data.
+
+POST-only paid resources also expose their genuine x402 payment challenge to an unpaid GET discovery probe. This compatibility behavior is for crawlers only; paid execution must use the endpoint method shown below.
 
 ## Paid endpoints
 ${endpoints.map((endpoint) => `- ${endpoint.method} ${endpoint.path} — ${endpoint.price} — ${endpoint.description}`).join("\n")}
@@ -82,13 +88,85 @@ function buildManifest() {
       bazaar: true,
       manifest: `${LIVE_BASE}/.well-known/x402.json`,
       agentManifest: `${LIVE_BASE}/.well-known/agents.json`,
+      unpaidGetProbeCompatibility: true,
     },
     endpoints: endpoints.map((endpoint) => ({
       ...endpoint,
       url: `${LIVE_BASE}${endpoint.path}`,
       paymentRequired: true,
+      discoveryProbeMethod: "GET",
+      executionMethod: endpoint.method,
     })),
   };
+}
+
+function hasPaymentPayload(req) {
+  return Boolean(
+    req.get("payment-signature") ||
+      req.get("x-payment") ||
+      req.get("payment") ||
+      req.get("authorization")
+  );
+}
+
+async function proxyUnpaidGetProbeToPost(req, res) {
+  if (hasPaymentPayload(req)) {
+    return res.status(405).json({
+      error: "This resource is POST-only for paid execution.",
+      method: "POST",
+      path: req.path,
+    });
+  }
+
+  const localPort = Number(process.env.PORT || 3000);
+  const host = req.get("host") || new URL(LIVE_BASE).host;
+  const forwardedProto = req.get("x-forwarded-proto") || "https";
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${localPort}${req.originalUrl}`, {
+      method: "POST",
+      redirect: "manual",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": req.get("user-agent") || "x402-discovery-probe",
+        Host: host,
+        "X-Forwarded-Host": req.get("x-forwarded-host") || host,
+        "X-Forwarded-Proto": forwardedProto,
+        ...(req.ip ? { "X-Forwarded-For": req.ip } : {}),
+      },
+      body: "{}",
+    });
+
+    const hopByHopHeaders = new Set([
+      "connection",
+      "content-length",
+      "keep-alive",
+      "proxy-authenticate",
+      "proxy-authorization",
+      "te",
+      "trailer",
+      "transfer-encoding",
+      "upgrade",
+    ]);
+
+    for (const [name, value] of response.headers.entries()) {
+      if (!hopByHopHeaders.has(name.toLowerCase())) res.set(name, value);
+    }
+
+    res.set("X-X402-Discovery-Probe", "GET-to-POST");
+    res.set("X-X402-Execution-Method", "POST");
+
+    const body = await response.text();
+    return res.status(response.status).send(body);
+  } catch (error) {
+    console.error(`x402 crawler probe proxy failed for ${req.path}:`, error.message);
+    return res.status(503).json({
+      error: "x402 discovery probe temporarily unavailable.",
+      executionMethod: "POST",
+      path: req.path,
+    });
+  }
 }
 
 function registerDiscoveryRoutes(app) {
@@ -106,6 +184,11 @@ function registerDiscoveryRoutes(app) {
   app.get("/.well-known/agents.json", manifestHandler);
   app.get("/.well-known/x402.json", manifestHandler);
   app.get("/.well-known/x402", manifestHandler);
+
+  for (const path of postOnlyPaths) {
+    app.get(path, proxyUnpaidGetProbeToPost);
+    app.head(path, proxyUnpaidGetProbeToPost);
+  }
 }
 
 const originalInit = express.application.init;
