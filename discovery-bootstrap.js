@@ -3,6 +3,7 @@ import express from "express";
 const LIVE_BASE = "https://x402-trends-server.onrender.com";
 const NETWORK = "eip155:8453";
 const PAYMENT_TOKEN = "USDC";
+const A2A_PROTOCOL_VERSION = "0.3.0";
 
 const endpoints = [
   { method: "POST", path: "/api/scrape", price: "$0.005", description: "Extract clean readable text from a public webpage." },
@@ -19,9 +20,20 @@ const endpoints = [
   { method: "GET", path: "/api/base-tx-status", price: "$0.005", description: "Get Base transaction status, confirmations, gas, and receipt details." },
 ];
 
-const postOnlyPaths = new Set(
-  endpoints.filter((endpoint) => endpoint.method === "POST").map((endpoint) => endpoint.path)
-);
+const skills = [
+  { id: "web-scraping", name: "Web scraping", description: "Extract clean readable text from public webpages.", tags: ["web", "scraping", "extraction"], examples: ["Extract readable text from a public URL"] },
+  { id: "website-research", name: "Website research", description: "Analyze webpage metadata, links, contacts, structure, and website research signals.", tags: ["web", "research", "metadata"], examples: ["Research a public company website"] },
+  { id: "crypto-market-data", name: "Crypto market data", description: "Retrieve current Coinbase Exchange ticker and market statistics.", tags: ["crypto", "market-data", "coinbase"], examples: ["Get current BTC market statistics"] },
+  { id: "base-chain-intelligence", name: "Base chain intelligence", description: "Check Base Mainnet wallet balances and transaction status.", tags: ["base", "blockchain", "wallet", "transactions"], examples: ["Check ETH and USDC balance for a Base wallet", "Verify whether a Base transaction succeeded"] },
+  { id: "sports-data", name: "Sports schedules and scores", description: "Retrieve normalized NBA, NFL, MLB, and EPL schedules, scores, and game briefs.", tags: ["sports", "scores", "schedules"], examples: ["Get today's MLB games"] },
+  { id: "weather-forecast", name: "U.S. weather forecast", description: "Retrieve NOAA/NWS forecasts for U.S. coordinates.", tags: ["weather", "forecast", "noaa"], examples: ["Get the forecast for a U.S. latitude and longitude"] },
+  { id: "sec-company-research", name: "SEC company research", description: "Retrieve SEC EDGAR company information and recent filings by ticker.", tags: ["sec", "edgar", "company", "filings"], examples: ["Get recent SEC filings for a public company"] },
+  { id: "currency-conversion", name: "Currency conversion", description: "Convert fiat currencies using current reference exchange rates.", tags: ["fx", "currency", "exchange-rate"], examples: ["Convert USD to EUR"] },
+  { id: "receipt-parsing", name: "Receipt parsing", description: "Turn raw receipt text into structured purchase data.", tags: ["receipt", "parsing", "structured-data"], examples: ["Parse receipt text into merchant, items, and totals"] },
+  { id: "spaceflight-news", name: "Spaceflight news", description: "Retrieve recent spaceflight and space-industry news stories.", tags: ["news", "space", "spaceflight"], examples: ["Get the latest spaceflight news"] },
+];
+
+const postOnlyPaths = new Set(endpoints.filter((endpoint) => endpoint.method === "POST").map((endpoint) => endpoint.path));
 
 const llmsText = `# x402 Agent Data API
 
@@ -30,11 +42,13 @@ const llmsText = `# x402 Agent Data API
 ## Service
 - Base URL: ${LIVE_BASE}
 - Protocol: x402 v2
+- A2A protocol version: ${A2A_PROTOCOL_VERSION}
 - Network: Base Mainnet (${NETWORK})
 - Payment token: ${PAYMENT_TOKEN}
 - OpenAPI: ${LIVE_BASE}/openapi.json
 - Health: ${LIVE_BASE}/health
 - Machine manifest: ${LIVE_BASE}/.well-known/x402.json
+- Agent card: ${LIVE_BASE}/.well-known/agent.json
 - GitHub: https://github.com/Rveravz/x402-trends-server
 
 ## How to use
@@ -45,25 +59,19 @@ POST-only paid resources also expose their genuine x402 payment challenge to an 
 ## Paid endpoints
 ${endpoints.map((endpoint) => `- ${endpoint.method} ${endpoint.path} — ${endpoint.price} — ${endpoint.description}`).join("\n")}
 
+## Agent skills
+${skills.map((skill) => `- ${skill.name} — ${skill.description}`).join("\n")}
+
 ## Free discovery endpoints
 - GET / — service and pricing catalog
 - GET /health — uptime and configuration status
 - GET /openapi.json — OpenAPI description
 - GET /llms.txt — LLM-oriented service summary
 - GET /agents.json — agent-oriented machine manifest
+- GET /.well-known/agent.json — A2A-style agent card
 - GET /.well-known/agents.json — well-known alias for the agent manifest
 - GET /.well-known/x402.json — x402-oriented machine manifest
 - GET /.well-known/x402 — alias for the x402 machine manifest
-
-## Best agent use cases
-- Base wallet balance and transaction verification
-- Web scraping, URL analysis, and website research
-- Current crypto market data
-- SEC company and filing research
-- Sports schedules and scores
-- U.S. weather forecasts
-- Currency conversion
-- Structured receipt parsing
 
 All paid prices are per request and denominated in USDC-equivalent dollar amounts via x402.
 `;
@@ -73,13 +81,19 @@ function buildManifest() {
     name: "x402 Agent Data API",
     description: "Pay-per-request structured data tools for AI agents using x402 on Base Mainnet.",
     version: "2.6.0",
+    protocolVersion: A2A_PROTOCOL_VERSION,
     baseUrl: LIVE_BASE,
+    url: LIVE_BASE,
     protocol: "x402",
     x402Version: 2,
     network: NETWORK,
     networkName: "Base Mainnet",
     paymentToken: PAYMENT_TOKEN,
     paymentAsset: "USDC",
+    capabilities: { streaming: false, pushNotifications: false, stateTransitionHistory: false },
+    defaultInputModes: ["application/json"],
+    defaultOutputModes: ["application/json"],
+    skills,
     openapi: `${LIVE_BASE}/openapi.json`,
     llms: `${LIVE_BASE}/llms.txt`,
     health: `${LIVE_BASE}/health`,
@@ -88,34 +102,20 @@ function buildManifest() {
       bazaar: true,
       manifest: `${LIVE_BASE}/.well-known/x402.json`,
       agentManifest: `${LIVE_BASE}/.well-known/agents.json`,
+      agentCard: `${LIVE_BASE}/.well-known/agent.json`,
       unpaidGetProbeCompatibility: true,
     },
-    endpoints: endpoints.map((endpoint) => ({
-      ...endpoint,
-      url: `${LIVE_BASE}${endpoint.path}`,
-      paymentRequired: true,
-      discoveryProbeMethod: "GET",
-      executionMethod: endpoint.method,
-    })),
+    endpoints: endpoints.map((endpoint) => ({ ...endpoint, url: `${LIVE_BASE}${endpoint.path}`, paymentRequired: true, discoveryProbeMethod: "GET", executionMethod: endpoint.method })),
   };
 }
 
 function hasPaymentPayload(req) {
-  return Boolean(
-    req.get("payment-signature") ||
-      req.get("x-payment") ||
-      req.get("payment") ||
-      req.get("authorization")
-  );
+  return Boolean(req.get("payment-signature") || req.get("x-payment") || req.get("payment") || req.get("authorization"));
 }
 
 async function proxyUnpaidGetProbeToPost(req, res) {
   if (hasPaymentPayload(req)) {
-    return res.status(405).json({
-      error: "This resource is POST-only for paid execution.",
-      method: "POST",
-      path: req.path,
-    });
+    return res.status(405).json({ error: "This resource is POST-only for paid execution.", method: "POST", path: req.path });
   }
 
   const localPort = Number(process.env.PORT || 3000);
@@ -138,34 +138,18 @@ async function proxyUnpaidGetProbeToPost(req, res) {
       body: "{}",
     });
 
-    const hopByHopHeaders = new Set([
-      "connection",
-      "content-length",
-      "keep-alive",
-      "proxy-authenticate",
-      "proxy-authorization",
-      "te",
-      "trailer",
-      "transfer-encoding",
-      "upgrade",
-    ]);
-
+    const hopByHopHeaders = new Set(["connection", "content-length", "keep-alive", "proxy-authenticate", "proxy-authorization", "te", "trailer", "transfer-encoding", "upgrade"]);
     for (const [name, value] of response.headers.entries()) {
       if (!hopByHopHeaders.has(name.toLowerCase())) res.set(name, value);
     }
 
     res.set("X-X402-Discovery-Probe", "GET-to-POST");
     res.set("X-X402-Execution-Method", "POST");
-
     const body = await response.text();
     return res.status(response.status).send(body);
   } catch (error) {
     console.error(`x402 crawler probe proxy failed for ${req.path}:`, error.message);
-    return res.status(503).json({
-      error: "x402 discovery probe temporarily unavailable.",
-      executionMethod: "POST",
-      path: req.path,
-    });
+    return res.status(503).json({ error: "x402 discovery probe temporarily unavailable.", executionMethod: "POST", path: req.path });
   }
 }
 
@@ -181,6 +165,7 @@ function registerDiscoveryRoutes(app) {
   };
 
   app.get("/agents.json", manifestHandler);
+  app.get("/.well-known/agent.json", manifestHandler);
   app.get("/.well-known/agents.json", manifestHandler);
   app.get("/.well-known/x402.json", manifestHandler);
   app.get("/.well-known/x402", manifestHandler);
@@ -192,7 +177,6 @@ function registerDiscoveryRoutes(app) {
 }
 
 const originalInit = express.application.init;
-
 express.application.init = function patchedInit(...args) {
   const result = originalInit.apply(this, args);
   registerDiscoveryRoutes(this);
