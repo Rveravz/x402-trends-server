@@ -3,7 +3,7 @@ import express from "express";
 const LIVE_BASE = "https://x402-trends-server.onrender.com";
 const NETWORK = "eip155:8453";
 const PAYMENT_TOKEN = "USDC";
-const A2A_PROTOCOL_VERSION = "0.3.0";
+const A2A_PROTOCOL_VERSION = "1.0";
 
 const endpoints = [
   { method: "POST", path: "/api/scrape", price: "$0.005", description: "Extract clean readable text from a public webpage." },
@@ -81,9 +81,19 @@ function buildManifest() {
     name: "x402 Agent Data API",
     description: "Pay-per-request structured data tools for AI agents using x402 on Base Mainnet.",
     version: "2.6.0",
-    protocolVersion: A2A_PROTOCOL_VERSION,
-    baseUrl: LIVE_BASE,
     url: LIVE_BASE,
+    baseUrl: LIVE_BASE,
+    provider: {
+      organization: "x402 Agent Data API",
+      url: LIVE_BASE,
+    },
+    supportedInterfaces: [
+      {
+        url: LIVE_BASE,
+        protocolBinding: "JSONRPC",
+        protocolVersion: A2A_PROTOCOL_VERSION,
+      },
+    ],
     protocol: "x402",
     x402Version: 2,
     network: NETWORK,
@@ -94,6 +104,14 @@ function buildManifest() {
     defaultInputModes: ["application/json"],
     defaultOutputModes: ["application/json"],
     skills,
+    securitySchemes: {
+      x402Payment: {
+        type: "http",
+        scheme: "x402",
+        description: "Paid resources use HTTP 402 payment requirements with USDC settlement on Base Mainnet.",
+      },
+    },
+    securityRequirements: [{ x402Payment: [] }],
     openapi: `${LIVE_BASE}/openapi.json`,
     llms: `${LIVE_BASE}/llms.txt`,
     health: `${LIVE_BASE}/health`,
