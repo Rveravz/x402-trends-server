@@ -48,7 +48,7 @@ const llmsText = `# x402 Agent Data API
 - OpenAPI: ${LIVE_BASE}/openapi.json
 - Health: ${LIVE_BASE}/health
 - Machine manifest: ${LIVE_BASE}/.well-known/x402.json
-- Agent card: ${LIVE_BASE}/.well-known/agent.json
+- Agent card: ${LIVE_BASE}/.well-known/agent-card.json
 - GitHub: https://github.com/Rveravz/x402-trends-server
 
 ## How to use
@@ -68,7 +68,8 @@ ${skills.map((skill) => `- ${skill.name} — ${skill.description}`).join("\n")}
 - GET /openapi.json — OpenAPI description
 - GET /llms.txt — LLM-oriented service summary
 - GET /agents.json — agent-oriented machine manifest
-- GET /.well-known/agent.json — A2A-style agent card
+- GET /.well-known/agent-card.json — standard A2A AgentCard discovery route
+- GET /.well-known/agent.json — legacy A2A-style agent card alias
 - GET /.well-known/agents.json — well-known alias for the agent manifest
 - GET /.well-known/x402.json — x402-oriented machine manifest
 - GET /.well-known/x402 — alias for the x402 machine manifest
@@ -120,7 +121,7 @@ function buildManifest() {
       bazaar: true,
       manifest: `${LIVE_BASE}/.well-known/x402.json`,
       agentManifest: `${LIVE_BASE}/.well-known/agents.json`,
-      agentCard: `${LIVE_BASE}/.well-known/agent.json`,
+      agentCard: `${LIVE_BASE}/.well-known/agent-card.json`,
       unpaidGetProbeCompatibility: true,
     },
     endpoints: endpoints.map((endpoint) => ({ ...endpoint, url: `${LIVE_BASE}${endpoint.path}`, paymentRequired: true, discoveryProbeMethod: "GET", executionMethod: endpoint.method })),
@@ -183,6 +184,7 @@ function registerDiscoveryRoutes(app) {
   };
 
   app.get("/agents.json", manifestHandler);
+  app.get("/.well-known/agent-card.json", manifestHandler);
   app.get("/.well-known/agent.json", manifestHandler);
   app.get("/.well-known/agents.json", manifestHandler);
   app.get("/.well-known/x402.json", manifestHandler);
