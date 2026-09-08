@@ -15,7 +15,9 @@
   "discovery": {
     "bazaar": true,
     "manifest": "https://x402-trends-server.onrender.com/.well-known/x402.json",
-    "agentManifest": "https://x402-trends-server.onrender.com/.well-known/agents.json"
+    "repositoryAgentManifest": "https://raw.githubusercontent.com/Rveravz/x402-trends-server/main/agents.json",
+    "a2aStatus": "not-yet-implemented",
+    "a2aRecommendedPath": "https://x402-trends-server.onrender.com/.well-known/agent-card.json"
   },
   "endpoints": [
     {"method":"POST","path":"/api/scrape","price":"$0.005","description":"Extract clean readable text from a public webpage.","paymentRequired":true},
