@@ -4,6 +4,7 @@ const LIVE_BASE = "https://x402-trends-server.onrender.com";
 const NETWORK = "eip155:8453";
 const PAYMENT_TOKEN = "USDC";
 const A2A_PROTOCOL_VERSION = "1.0";
+const API_CATALOG_PROFILE = "https://www.rfc-editor.org/info/rfc9727";
 
 const endpoints = [
   { method: "POST", path: "/api/scrape", price: "$0.005", description: "Extract clean readable text from a public webpage." },
@@ -47,6 +48,7 @@ const llmsText = `# x402 Agent Data API
 - Payment token: ${PAYMENT_TOKEN}
 - OpenAPI: ${LIVE_BASE}/openapi.json
 - Health: ${LIVE_BASE}/health
+- API catalog: ${LIVE_BASE}/.well-known/api-catalog
 - Machine manifest: ${LIVE_BASE}/.well-known/x402.json
 - Agent card: ${LIVE_BASE}/.well-known/agent-card.json
 - GitHub: https://github.com/Rveravz/x402-trends-server
@@ -67,6 +69,7 @@ ${skills.map((skill) => `- ${skill.name} — ${skill.description}`).join("\n")}
 - GET /health — uptime and configuration status
 - GET /openapi.json — OpenAPI description
 - GET /llms.txt — LLM-oriented service summary
+- GET /.well-known/api-catalog — RFC 9727 API catalog linkset
 - GET /agents.json — agent-oriented machine manifest
 - GET /.well-known/agent-card.json — standard A2A AgentCard discovery route
 - GET /.well-known/agent.json — legacy A2A-style agent card alias
@@ -119,12 +122,31 @@ function buildManifest() {
     repository: "https://github.com/Rveravz/x402-trends-server",
     discovery: {
       bazaar: true,
+      apiCatalog: `${LIVE_BASE}/.well-known/api-catalog`,
       manifest: `${LIVE_BASE}/.well-known/x402.json`,
       agentManifest: `${LIVE_BASE}/.well-known/agents.json`,
       agentCard: `${LIVE_BASE}/.well-known/agent-card.json`,
       unpaidGetProbeCompatibility: true,
     },
     endpoints: endpoints.map((endpoint) => ({ ...endpoint, url: `${LIVE_BASE}${endpoint.path}`, paymentRequired: true, discoveryProbeMethod: "GET", executionMethod: endpoint.method })),
+  };
+}
+
+function buildApiCatalog() {
+  return {
+    linkset: [
+      {
+        anchor: `${LIVE_BASE}/.well-known/api-catalog`,
+        item: endpoints.map((endpoint) => ({ href: `${LIVE_BASE}${endpoint.path}` })),
+        "service-desc": [
+          { href: `${LIVE_BASE}/openapi.json`, type: "application/json" },
+          { href: `${LIVE_BASE}/.well-known/agent-card.json`, type: "application/json" },
+          { href: `${LIVE_BASE}/.well-known/x402.json`, type: "application/json" },
+        ],
+        status: [{ href: `${LIVE_BASE}/health`, type: "application/json" }],
+        "service-doc": [{ href: "https://github.com/Rveravz/x402-trends-server", type: "text/html" }],
+      },
+    ],
   };
 }
 
@@ -182,6 +204,23 @@ function registerDiscoveryRoutes(app) {
     res.set("Cache-Control", "public, max-age=300");
     res.json(buildManifest());
   };
+
+  const apiCatalogLink = `<${LIVE_BASE}/.well-known/api-catalog>; rel="api-catalog"; type="application/linkset+json"`;
+  const apiCatalogHeaders = (res) => {
+    res.set("Cache-Control", "public, max-age=300");
+    res.set("Link", apiCatalogLink);
+    res.set("Content-Type", `application/linkset+json; profile="${API_CATALOG_PROFILE}"`);
+  };
+
+  app.head("/.well-known/api-catalog", (_req, res) => {
+    apiCatalogHeaders(res);
+    return res.status(200).end();
+  });
+
+  app.get("/.well-known/api-catalog", (_req, res) => {
+    apiCatalogHeaders(res);
+    return res.status(200).send(JSON.stringify(buildApiCatalog()));
+  });
 
   app.get("/agents.json", manifestHandler);
   app.get("/.well-known/agent-card.json", manifestHandler);
