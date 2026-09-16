@@ -24,6 +24,9 @@ These are useful places to verify whether the service is discoverable. Inclusion
 - Agentic Market — independent x402 catalog
 - x402.new — independent x402 directory and usage view
 - Agenstry — agent/discovery visibility and observed on-chain inflow
+- TOLL Index — cross-registry visibility, delisting/relisting signals, and registry health
+- Signal402 — independent service/category tracking and ecosystem demand signals
+- x402 Trust — independent reachability, payment-envelope compliance, and settlement tracking
 - A2A directories — useful for validating AgentCard indexing and routability
 
 ## Operating rules
@@ -39,5 +42,7 @@ These are useful places to verify whether the service is discoverable. Inclusion
 ## Current positioning
 
 The strongest demonstrated product categories in this service are inexpensive web extraction/research and structured agent utilities. Blockchain transaction intelligence is a natural adjacent category because Base RPC data can be sourced at very low operating cost.
+
+Market monitoring should prioritize payer diversity over raw call volume. Whole-catalog measurements repeatedly show that many x402 listings have only one payer, so a small number of independent repeat buyers is a stronger product signal than synthetic or concentrated traffic.
 
 This document is informational only; it does not register the service with third parties or submit wallet/account information.
