@@ -93,7 +93,7 @@ function buildManifest() {
     },
     supportedInterfaces: [
       {
-        url: LIVE_BASE,
+        url: `${LIVE_BASE}/a2a`,
         protocolBinding: "JSONRPC",
         protocolVersion: A2A_PROTOCOL_VERSION,
       },
