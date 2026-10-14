@@ -51,6 +51,7 @@ const llmsText = `# x402 Agent Data API
 - API catalog: ${LIVE_BASE}/.well-known/api-catalog
 - Machine manifest: ${LIVE_BASE}/.well-known/x402.json
 - Agent card: ${LIVE_BASE}/.well-known/agent-card.json
+- A2A JSON-RPC discovery (read-only): ${LIVE_BASE}/a2a (POST, A2A-Version: 1.0; no paid execution)
 - GitHub: https://github.com/Rveravz/x402-trends-server
 
 ## How to use
@@ -72,6 +73,7 @@ ${skills.map((skill) => `- ${skill.name} — ${skill.description}`).join("\n")}
 - GET /.well-known/api-catalog — RFC 9727 API catalog linkset
 - GET /agents.json — agent-oriented machine manifest
 - GET /.well-known/agent-card.json — standard A2A AgentCard discovery route
+- POST /a2a — read-only A2A v1.0 JSON-RPC SendMessage guidance (no paid execution)
 - GET /.well-known/agent.json — legacy A2A-style agent card alias
 - GET /.well-known/agents.json — well-known alias for the agent manifest
 - GET /.well-known/x402.json — x402-oriented machine manifest
