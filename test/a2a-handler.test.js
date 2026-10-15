@@ -118,3 +118,26 @@ test("oversized JSON body is rejected without paid calls", () => {
   assert.equal(res.statusCode, 413);
   assert.equal(res.body.error.code, -32600);
 });
+
+test("JSON-RPC request IDs accept strings, finite numbers, and null", () => {
+  for (const id of ["req-123", "", 0, 42, -3.5, null]) {
+    const response = handleA2ARequest(request({ id }));
+    assert.equal(response.id, id);
+    assert.ok(response.result, "valid ID must not cause an error");
+  }
+});
+
+test("JSON-RPC request IDs reject booleans, arrays, objects, and non-finite numbers", () => {
+  for (const id of [true, false, [], {}, { nested: 1 }, NaN, Infinity, -Infinity]) {
+    const response = handleA2ARequest(request({ id }));
+    assert.equal(response.jsonrpc, "2.0");
+    assert.equal(response.id, null);
+    assert.equal(response.error.code, -32600);
+  }
+});
+
+test("invalid envelopes preserve only valid IDs in error responses", () => {
+  assert.equal(handleA2ARequest(request({ jsonrpc: "1.0", id: 9 })).id, 9);
+  assert.equal(handleA2ARequest(request({ jsonrpc: "1.0", id: { x: 1 } })).id, null);
+  assert.equal(handleA2ARequest(request({ id: true }), "0.3").error.code, -32600);
+});
