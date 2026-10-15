@@ -13,8 +13,14 @@ export function handleA2ARequest(body, version = "1.0") {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     return errorResponse(null, -32600, "Invalid JSON-RPC request");
   }
-  const id = typeof body.id === "string" || typeof body.id === "number" || body.id === null ? body.id : null;
-  if (body.jsonrpc !== "2.0" || !Object.hasOwn(body, "id")) {
+  const hasId = Object.hasOwn(body, "id");
+  const validId = hasId && (
+    typeof body.id === "string" ||
+    (typeof body.id === "number" && Number.isFinite(body.id)) ||
+    body.id === null
+  );
+  const id = validId ? body.id : null;
+  if (body.jsonrpc !== "2.0" || !validId) {
     return errorResponse(id, -32600, "Invalid JSON-RPC request");
   }
   if (version !== "1.0") {
