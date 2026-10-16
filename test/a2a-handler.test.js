@@ -141,3 +141,31 @@ test("invalid envelopes preserve only valid IDs in error responses", () => {
   assert.equal(handleA2ARequest(request({ jsonrpc: "1.0", id: { x: 1 } })).id, null);
   assert.equal(handleA2ARequest(request({ id: true }), "0.3").error.code, -32600);
 });
+
+
+test("SendMessage requires a nonempty messageId and object message", () => {
+  for (const messageId of [undefined, null, "", "   ", 5]) {
+    const req = request();
+    req.params.message.messageId = messageId;
+    assert.equal(handleA2ARequest(req).error.code, -32602);
+  }
+  for (const message of [null, [], "hello", 7]) {
+    assert.equal(handleA2ARequest(request({ params: { message } })).error.code, -32602);
+  }
+});
+
+test("parts boundary accepts 16 entries and rejects malformed parts", () => {
+  const req = request();
+  req.params.message.parts = Array.from({ length: 16 }, () => ({ text: "ok" }));
+  assert.ok(handleA2ARequest(req).result);
+  for (const part of [null, [], 42, "text", {}]) {
+    req.params.message.parts = [part];
+    assert.equal(handleA2ARequest(req).error.code, -32602);
+  }
+});
+
+test("invalid parameter containers cannot produce a successful response", () => {
+  for (const params of [null, [], "hello", 3, true]) {
+    assert.equal(handleA2ARequest(request({ params })).error.code, -32602);
+  }
+});
