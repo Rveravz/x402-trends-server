@@ -7,6 +7,7 @@ import { paymentMiddleware } from "@x402/express";
 import { x402ResourceServer } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { createCdpFacilitatorClient } from "@coinbase/cdp-sdk/x402";
+import { registerA2ARoute } from "./a2a-handler.js";
 import {
   declareDiscoveryExtension,
   bazaarResourceServerExtension,
@@ -16,6 +17,9 @@ const app = express();
 app.set("trust proxy", true);
 app.disable("x-powered-by");
 app.use(express.json({ limit: "1mb" }));
+
+// Free, read-only A2A discovery. Register before x402 payment middleware.
+registerA2ARoute(app);
 
 const VERSION = "2.6.0";
 const PORT = Number(process.env.PORT || 3000);
