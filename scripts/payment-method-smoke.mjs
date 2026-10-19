@@ -18,7 +18,7 @@ async function check(method, path, expected) {
         ...(method === 'POST' ? { 'Content-Type': 'application/json' } : {}) },
       ...(method === 'POST' ? { body: '{}' } : {}),
     });
-    const ok = expected === 'challenge' ? res.status === 402 : res.status >= 400;
+    const ok = expected === 'challenge' ? res.status === 402 : res.status >= 400 && res.status < 500;
     results.push({ method, path, status: res.status, ok });
   } catch (error) {
     results.push({ method, path, status: 'ERROR', ok: false, detail: String(error?.message || error) });
