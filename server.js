@@ -16,10 +16,14 @@ import {
 const app = express();
 app.set("trust proxy", true);
 app.disable("x-powered-by");
-app.use(express.json({ limit: "1mb" }));
+// Enforce the A2A request limit at HTTP ingress before the shared JSON parser.
+app.use("/a2a", express.json({ limit: "16kb" }));
 
 // Free, read-only A2A discovery. Register before x402 payment middleware.
 registerA2ARoute(app);
+
+// Preserve the existing 1 MB parser for all other routes, including paid APIs.
+app.use(express.json({ limit: "1mb" }));
 
 const VERSION = "2.6.0";
 const PORT = Number(process.env.PORT || 3000);
