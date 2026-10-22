@@ -87,6 +87,22 @@ These routes do not require payment:
 - `GET /health` — health/status information
 - `GET /openapi.json` — OpenAPI description
 
+## Machine-readable discovery and release status
+
+The production service exposes free machine-readable discovery surfaces, including:
+
+- `GET /llms.txt` — concise agent-facing summary
+- `GET /.well-known/api-catalog` — API catalog linkset
+- `GET /agents.json` and `GET /.well-known/agents.json` — agent manifest
+- `GET /.well-known/agent-card.json` — A2A AgentCard
+- `GET /.well-known/x402.json` — x402 manifest
+
+**A2A release status:** The AgentCard advertises `POST /a2a`, but external monitoring currently reports HTTP 404 for live JSON-RPC on the production deployment. A read-only A2A `SendMessage` implementation is on the `improve/a2a-jsonrpc-discovery-20261007` development branch only; do not assume it is deployed. Production release requires passing offline A2A tests, unpaid HTTP 402 regression checks, and a live no-payment JSON-RPC heartbeat.
+
+**Base endpoint indexing:** `/api/base-wallet-balance` and `/api/base-tx-status` are advertised in the manifest, but their presence in the Coinbase Bazaar resource index is not yet confirmed. A manifest entry is not evidence of Bazaar indexing or customer purchases. See [the unpaid indexing audit](docs/bazaar-base-indexing-audit-2026-10-20.md).
+
+**Upstream reliability:** Base's public RPC is rate-limited and is not intended for sustained production traffic. For the Base endpoints, use bounded polling, short-lived caching, explicit HTTP 429 handling and a documented upstream-failure response before increasing load. Do not silently switch to a paid RPC provider or create paid infrastructure. See [the operations runbook](docs/operations-revenue-reliability.md).
+
 ## For AI agents
 
 A normal unpaid request to a protected route returns HTTP `402 Payment Required` with x402 payment requirements. A compatible x402 client can read that challenge, authorize the Base USDC payment, retry the request, and receive JSON.
