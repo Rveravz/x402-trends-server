@@ -48,15 +48,23 @@ function classify(r) {
   return category === 'organic' && validEvidence ? 'confirmed_organic' : 'unattributed';
 }
 function reconcile(rows, previous) {
-  const seen = new Set(); let observed = 0n, organic = 0n, excluded = 0n, unknown = 0n;
+  const seen = new Map(); let observed = 0n, organic = 0n, excluded = 0n, unknown = 0n;
   const buyers = new Map(); let duplicates = 0;
   for (const r of rows) {
     if (!/^0x[a-f\d]{64}$/i.test(r.tx_hash)) throw new Error(`Invalid tx hash: ${r.tx_hash}`);
     if (!/^\d+$/.test(r.log_index)) throw new Error(`Invalid log index: ${r.log_index}`);
     if (Number.isNaN(Date.parse(r.timestamp))) throw new Error(`Invalid timestamp: ${r.timestamp}`);
     const key = `${r.tx_hash.toLowerCase()}:${BigInt(r.log_index)}`;
-    if (seen.has(key)) { duplicates++; continue; }
-    seen.add(key);
+    // Never silently accept conflicting claims for the same on-chain transfer.
+    // Ignore timestamp differences, but require identical amount and attribution evidence.
+    const fingerprint = JSON.stringify([r.amount_usdc, r.endpoint, r.paid_request_id,
+      r.request_status, r.attribution.toLowerCase(), r.payer_verified_external.toLowerCase(),
+      r.evidence_link, r.payer_address.toLowerCase()]);
+    if (seen.has(key)) {
+      if (seen.get(key) !== fingerprint) throw new Error(`Conflicting duplicate transfer event: ${key}`);
+      duplicates++; continue;
+    }
+    seen.set(key, fingerprint);
     const amount = toMicros(r.amount_usdc); observed += amount;
     const type = classify(r);
     if (type === 'confirmed_organic') {
@@ -89,7 +97,11 @@ function selfTest() {
   if (result.observed_inflow_usdc !== '0.015000' || result.confirmed_organic_usdc !== '0.010000' ||
       result.excluded_test_verifier_usdc !== '0.005000' || result.duplicate_rows_ignored !== 1 ||
       result.change_since_previous_snapshot_usdc !== '0.005000') throw new Error('Self-test failed');
-  console.log('PASS offline reconciliation self-test (dedupe, attribution, amount, delta)');
+  let rejectedConflict = false;
+  try { reconcile([{...base,tx_hash:h},{...base,tx_hash:h,attribution:'test'}], null); }
+  catch (e) { rejectedConflict = /Conflicting duplicate transfer event/.test(e.message); }
+  if (!rejectedConflict) throw new Error('Conflicting duplicate must be rejected');
+  console.log('PASS offline reconciliation self-test (dedupe, conflicting duplicate, attribution, amount, delta)');
 }
 const args = argv.slice(2);
 try {
