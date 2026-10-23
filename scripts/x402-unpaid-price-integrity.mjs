@@ -12,6 +12,8 @@ const expected = [
   ['GET', '/api/base-wallet-balance', '3000'], ['GET', '/api/base-tx-status', '5000'],
 ];
 const usdcBase = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+// Public settlement destination. Never use this script to sign or send a payment.
+const expectedPayTo = '0xf61f957d9ac432309219549b1ae79ae8b7c71ff5';
 function decode(value) {
   if (!value) return null;
   try {
@@ -23,18 +25,24 @@ function decode(value) {
 }
 function validChallenge(status, header, amount) {
   const body = decode(header);
-  return status === 402 && Array.isArray(body?.accepts) && body.accepts.some(a =>
-    a?.network === 'eip155:8453' && String(a.amount ?? a.maxAmountRequired ?? '') === amount &&
-    String(a.asset ?? '').toLowerCase() === usdcBase);
+  return status === 402 && body?.x402Version === 2 && Array.isArray(body?.accepts) && body.accepts.some(a =>
+    a?.scheme === 'exact' && a?.network === 'eip155:8453' &&
+    String(a.amount ?? a.maxAmountRequired ?? '') === amount &&
+    String(a.asset ?? '').toLowerCase() === usdcBase &&
+    String(a.payTo ?? '').toLowerCase() === expectedPayTo);
 }
 if (process.argv.includes('--self-test')) {
-  const fixture = { x402Version: 2, accepts: [{ network: 'eip155:8453', amount: '5000', asset: usdcBase }] };
+  const fixture = { x402Version: 2, accepts: [{ scheme: 'exact', network: 'eip155:8453', amount: '5000', asset: usdcBase, payTo: expectedPayTo }] };
   const header = Buffer.from(JSON.stringify(fixture)).toString('base64url');
   const assertions = [
     validChallenge(402, header, '5000'), !validChallenge(402, header, '5001'),
     !validChallenge(200, header, '5000'), !validChallenge(402, 'not-json', '5000'),
     validChallenge(402, JSON.stringify(fixture), '5000'),
-    !validChallenge(402, Buffer.from(JSON.stringify({ accepts: [{...fixture.accepts[0], network: 'eip155:84532'}] })).toString('base64'), '5000'),
+    !validChallenge(402, Buffer.from(JSON.stringify({ ...fixture, accepts: [{...fixture.accepts[0], network: 'eip155:84532'}] })).toString('base64'), '5000'),
+    !validChallenge(402, JSON.stringify({ ...fixture, x402Version: 1 }), '5000'),
+    !validChallenge(402, JSON.stringify({ ...fixture, accepts: [{ ...fixture.accepts[0], scheme: 'upto' }] }), '5000'),
+    !validChallenge(402, JSON.stringify({ ...fixture, accepts: [{ ...fixture.accepts[0], payTo: '0x0000000000000000000000000000000000000001' }] }), '5000'),
+    !validChallenge(402, JSON.stringify({ accepts: fixture.accepts }), '5000'),
     expected.length === 12 && expected.filter(([method]) => method === 'POST').length === 4,
   ];
   if (assertions.some(x => !x)) { console.error('FAIL unpaid price integrity fixtures'); process.exitCode = 1; }
