@@ -8,10 +8,10 @@ import { resolve, dirname } from "node:path";
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(resolve(here, "../server.js"), "utf8");
 const a2aHandler = readFileSync(resolve(here, "../a2a-handler.js"), "utf8");
-const a2aErrorAt = a2aHandler.search(/app\\.use\\(\\s*["']\\/a2a["']\\s*,\\s*\\(\\s*err\\b/);
-const a2aPostAt = a2aHandler.search(/app\\.post\\(\\s*["']\\/a2a["']/);
-const handlesTooLarge = /err\\?\\.type\\s*===\\s*["']entity\\.too\\.large["']/.test(a2aHandler);
-const handlesMalformed = /err\\?\\.type\\s*===\\s*["']entity\\.parse\\.failed["']/.test(a2aHandler);
+const a2aErrorAt = a2aHandler.search(/app\.use\(\s*["']\/a2a["']\s*,\s*\(\s*err\b/);
+const a2aPostAt = a2aHandler.search(/app\.post\(\s*["']\/a2a["']/);
+const handlesTooLarge = /err\?\.type\s*===\s*["']entity\.too\.large["']/.test(a2aHandler);
+const handlesMalformed = /err\?\.type\s*===\s*["']entity\.parse\.failed["']/.test(a2aHandler);
 
 
 const globalParser = /app\.use\(\s*express\.json\(\s*\{\s*limit:\s*["']1mb["']/i;
