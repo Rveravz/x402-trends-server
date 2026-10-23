@@ -24,6 +24,19 @@ async function check(name, path, test) {
 await check('service root and Base route manifest', '/', (response, body) =>
   response.status === 200 && expected.every(({ key, path, price }) =>
     body?.paidEndpoints?.[key]?.path === path && body?.paidEndpoints?.[key]?.price === price));
+// Verify all public discovery surfaces without sending any payment authorization.
+await check('x402 manifest lists both Base resources', '/.well-known/x402.json', (response, body) =>
+  response.status === 200 && expected.every(({ path, price }) =>
+    Array.isArray(body?.endpoints) && body.endpoints.some(item =>
+      item.path === path && item.method === 'GET' && item.price === price &&
+      item.paymentRequired === true && item.url === `${base}${path}`)));
+await check('RFC 9727 catalog links both Base resources', '/.well-known/api-catalog', (response, body) =>
+  response.status === 200 && Array.isArray(body?.linkset) &&
+  body.linkset.some(set => Array.isArray(set?.item) && expected.every(({ path }) =>
+    set.item.some(item => item.href === `${base}${path}`))));
+await check('OpenAPI declares both Base GET operations', '/openapi.json', (response, body) =>
+  response.status === 200 && expected.every(({ path }) =>
+    Boolean(body?.paths?.[path]?.get)));
 await check('AgentCard discoverable', '/.well-known/agent-card.json', (response, body) =>
   response.status === 200 && Array.isArray(body?.skills) &&
   body.skills.some(skill => /base/i.test(JSON.stringify(skill))));
