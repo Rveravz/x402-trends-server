@@ -1,5 +1,6 @@
 import express from "express";
 import axios from "axios";
+import { unwrapBaseRpcResult } from "./base-rpc-response.js";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
@@ -2321,16 +2322,7 @@ async function baseRpc(method, params = []) {
     }
   );
 
-  if (response.data?.error) {
-    const rpcError = new Error(
-      response.data.error.message || `Base RPC error ${response.data.error.code || "unknown"}`
-    );
-
-    rpcError.rpcCode = response.data.error.code;
-    throw rpcError;
-  }
-
-  return response.data?.result;
+  return unwrapBaseRpcResult(response.data, id);
 }
 
 function pruneSimpleCache(cache, maxEntries = 500) {
