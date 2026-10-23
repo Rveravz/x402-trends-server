@@ -1,6 +1,6 @@
 # A2A JSON-RPC readiness and regression checklist
 
-Status (2026-10-14): **draft branch only; not deployed to production**. The draft branch now registers a read-only `POST /a2a` JSON-RPC handler before x402 payment middleware, points its generated AgentCard interface URL to `/a2a`, and advertises the route in generated `llms.txt`. Production is still deployed from `main` at `b2b8e89`, where third-party monitoring reports HTTP 404 for the advertised JSON-RPC interface. A2A conformance and existing x402 HTTP 402 payment behavior have **not** been jointly verified; do not merge or deploy on the strength of discovery metadata alone.
+Status (2026-10-23): **draft branch only; not deployed to production**. The draft branch now registers a read-only `POST /a2a` JSON-RPC handler before x402 payment middleware, points its generated AgentCard interface URL to `/a2a`, and advertises the route in generated `llms.txt`. Production is still deployed from `main` at `b2b8e89`, where third-party monitoring reports HTTP 404 for the advertised JSON-RPC interface. A2A conformance and existing x402 HTTP 402 payment behavior have **not** been jointly verified; do not merge or deploy on the strength of discovery metadata alone.
 
 ## Safe implementation boundary
 
@@ -26,7 +26,7 @@ Status (2026-10-14): **draft branch only; not deployed to production**. The draf
 
 - Run `npm test` and `npm run verify:x402` locally with no payment credentials or payment authorization. Check that the verification script only sends unpaid challenges and cannot settle payments before running it.
 - Test both a valid A2A v1.0 `SendMessage` and invalid/malformed requests, including request IDs and `A2A-Version` handling; confirm all replies remain read-only and bounded.
-- Review JSON body size handling: the draft now places a 16 KB route-specific Express JSON parser before `/a2a`, with the shared 1 MB parser remaining for paid APIs. However, oversized bodies are rejected by the parser before the A2A handler runs; without route-specific error middleware, the response may not be the JSON-RPC HTTP 413 required by the release gate. Validate and fix this on the draft branch before production.
+- Review JSON body size handling: the draft places a 16 KB route-specific Express JSON parser before `/a2a`, followed by A2A-only middleware for JSON-RPC HTTP 413 (oversized) and HTTP 400 (malformed JSON). The shared 1 MB parser remains for paid APIs. Dedicated offline Express tests cover both errors, but the complete application and real HTTP 402 payment protection have **not** been integration-tested together. Run the full unpaid release gate before considering a merge.
 - Confirm generated AgentCard, OpenAPI, `llms.txt`, `/health`, and all existing paid-route 402 challenges are unchanged except for the intended A2A discovery URL.
 - Require a non-paying local integration test of the full Express app and a clean production rollback plan before merging. Direct external live checks were unavailable in the October 14 automation environment due to DNS resolution failures.
 
