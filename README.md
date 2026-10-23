@@ -5,6 +5,7 @@
 ![Payment](https://img.shields.io/badge/payment-USDC-2775CA)
 ![Version](https://img.shields.io/badge/version-2.6.0-2ea44f)
 ![Node](https://img.shields.io/badge/node-%3E%3D22-339933)
+[![Independent uptime checks](https://agenstry.com/badge/x402-trends-server.onrender.com/uptime.svg)](https://agenstry.com/agents/x402-trends-server.onrender.com)
 
 Production pay-per-request API server built for AI agents using the x402 payment protocol on Base Mainnet.
 
@@ -97,7 +98,7 @@ The production service exposes free machine-readable discovery surfaces, includi
 - `GET /.well-known/agent-card.json` — A2A AgentCard
 - `GET /.well-known/x402.json` — x402 manifest
 
-**A2A release status:** The AgentCard advertises `POST /a2a`, but external monitoring currently reports HTTP 404 for live JSON-RPC on the production deployment. A read-only A2A `SendMessage` implementation is on the `improve/a2a-jsonrpc-discovery-20261007` development branch only; do not assume it is deployed. Production release requires passing offline A2A tests, unpaid HTTP 402 regression checks, and a live no-payment JSON-RPC heartbeat.
+**A2A release status:** The production AgentCard declares a JSON-RPC interface at the service root, where third-party monitoring reports HTTP 404. The `improve/a2a-jsonrpc-discovery-20261007` development branch changes the advertised interface to `/a2a` and implements a read-only `SendMessage` handler; neither change is deployed. Do not assume A2A works until full Express integration tests, unpaid HTTP 402 payment-regression checks, and a live no-payment JSON-RPC heartbeat pass.
 
 **Base endpoint indexing:** `/api/base-wallet-balance` and `/api/base-tx-status` are advertised in the manifest, but their presence in the Coinbase Bazaar resource index is not yet confirmed. A manifest entry is not evidence of Bazaar indexing or customer purchases. See [the unpaid indexing audit](docs/bazaar-base-indexing-audit-2026-10-20.md).
 
