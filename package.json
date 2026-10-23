@@ -6,8 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "node --import ./discovery-bootstrap.js server.js",
-    "test": "node --test test/a2a-handler.test.js test/a2a-ingress-http.test.js test/base-rpc-response.test.js && node scripts/check-a2a-ingress-order.mjs",
-    "verify:x402": "node verify-x402-challenges.js"
+    "test": "node --test test/a2a-handler.test.js test/a2a-ingress-http.test.js test/base-rpc-response.test.js && node scripts/check-a2a-ingress-order.mjs && npm run test:unpaid-payment",
+    "verify:x402": "node verify-x402-challenges.js",
+    "test:unpaid-payment": "node scripts/x402-unpaid-price-integrity.mjs --self-test"
   },
   "engines": {
     "node": ">=22"
