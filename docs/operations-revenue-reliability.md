@@ -20,7 +20,13 @@ Recommended private ledger columns: UTC timestamp, chain, transaction hash, paye
 
 ## Release safety gate
 
-Keep changes on a reviewable branch. Run syntax checks, unit tests, Express integration tests and unpaid x402 402-regression tests before merge. Preserve payment middleware, pay-to wallet, facilitator settings, secrets and deployed endpoint contracts. Do not auto-merge or deploy when tests cannot be run, especially while the A2A route body-size limit is checked only after the global 1 MB JSON parser. Prefer a route-specific 16 KB ingress parser before release. Verify a rollback commit is known.
+Keep changes on a reviewable branch. Run syntax checks, unit tests, Express integration tests and unpaid x402 402-regression tests before merge. Preserve payment middleware, pay-to wallet, facilitator settings, secrets and deployed endpoint contracts. Do not auto-merge or deploy when tests cannot be run.
+
+**A2A status (2026-10-23):** The draft branch now registers a route-scoped 16 KiB JSON parser for `/a2a` before the shared 1 MiB parser, and includes parser-error handling and isolated HTTP ingress tests. This is a code-level improvement, **not** proof of production readiness. The draft is not deployed. The production AgentCard still advertises an interface that external monitoring reports as HTTP 404.
+
+Before release, run the complete application with dependencies and test: (1) an unpaid A2A v1.0 heartbeat and malformed/oversized payloads, (2) the actual generated AgentCard URL, (3) all 12 existing payment challenges including four POST routes, (4) expected Base USDC amounts, pay-to wallet and protocol version, and (5) rollback to the known-good production commit `b2b8e89`. An isolated handler test or fixture-based price test does **not** replace full-app verification. Never send payment authorization or make a paid self-transaction for these checks.
+
+If direct production probes fail due to local DNS/network restrictions, record the check as **unverified**, not an outage or a pass; keep production unchanged until independent live checks succeed.
 
 ## Distribution and product decisions
 
