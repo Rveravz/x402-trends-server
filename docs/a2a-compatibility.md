@@ -26,7 +26,7 @@ Status (2026-10-14): **draft branch only; not deployed to production**. The draf
 
 - Run `npm test` and `npm run verify:x402` locally with no payment credentials or payment authorization. Check that the verification script only sends unpaid challenges and cannot settle payments before running it.
 - Test both a valid A2A v1.0 `SendMessage` and invalid/malformed requests, including request IDs and `A2A-Version` handling; confirm all replies remain read-only and bounded.
-- Review JSON body size handling: the global Express JSON parser currently permits 1 MB before the `/a2a` route checks its smaller 16 KB limit. A route-specific ingress limit is preferable before production.
+- Review JSON body size handling: the draft now places a 16 KB route-specific Express JSON parser before `/a2a`, with the shared 1 MB parser remaining for paid APIs. However, oversized bodies are rejected by the parser before the A2A handler runs; without route-specific error middleware, the response may not be the JSON-RPC HTTP 413 required by the release gate. Validate and fix this on the draft branch before production.
 - Confirm generated AgentCard, OpenAPI, `llms.txt`, `/health`, and all existing paid-route 402 challenges are unchanged except for the intended A2A discovery URL.
 - Require a non-paying local integration test of the full Express app and a clean production rollback plan before merging. Direct external live checks were unavailable in the October 14 automation environment due to DNS resolution failures.
 
