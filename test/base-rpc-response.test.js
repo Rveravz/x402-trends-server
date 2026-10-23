@@ -27,3 +27,11 @@ test('handles JSON-RPC errors with missing message', () => {
   assert.throws(() => unwrapBaseRpcResult({ jsonrpc: '2.0', id: 12, error: { code: -32603 } }, 12),
     /Base RPC error -32603/);
 });
+test('maps JSON-RPC rate-limit code to retryable HTTP 429 for existing route handlers', () => {
+  assert.throws(() => unwrapBaseRpcResult({ jsonrpc: '2.0', id: 12, error: { code: -32005, message: 'request limit exceeded' } }, 12),
+    error => error.rpcCode === -32005 && error.response?.status === 429 && error.response.data.error === 'request limit exceeded');
+});
+test('does not misclassify unrelated RPC errors as HTTP 429', () => {
+  assert.throws(() => unwrapBaseRpcResult({ jsonrpc: '2.0', id: 12, error: { code: -32603, message: 'internal error' } }, 12),
+    error => error.rpcCode === -32603 && error.response === undefined);
+});
