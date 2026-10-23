@@ -48,6 +48,11 @@ test("A2A rejects >16 KiB raw JSON at HTTP ingress", async () => {
   await withLocalServer(async base => {
     const res = await post(base + "/a2a", a2aMessage("x".repeat(17_000)));
     assert.equal(res.status, 413);
+    assert.equal(res.headers.get("a2a-version"), "1.0");
+    const json = await res.json();
+    assert.equal(json.jsonrpc, "2.0");
+    assert.equal(json.error.code, -32600);
+    assert.equal(json.error.message, "Request too large");
   });
 });
 
@@ -63,5 +68,9 @@ test("malformed A2A JSON fails without reaching any paid route", async () => {
   await withLocalServer(async base => {
     const res = await fetch(base + "/a2a", { method: "POST", headers: { "Content-Type": "application/json" }, body: "{bad-json" });
     assert.equal(res.status, 400);
+    assert.equal(res.headers.get("a2a-version"), "1.0");
+    const json = await res.json();
+    assert.equal(json.jsonrpc, "2.0");
+    assert.equal(json.error.code, -32700);
   });
 });
