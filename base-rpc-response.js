@@ -11,6 +11,11 @@ export function unwrapBaseRpcResult(payload, expectedId) {
       ? payload.error.message : `Base RPC error ${code ?? 'unknown'}`;
     const error = new Error(message);
     error.rpcCode = code;
+    // Public RPCs may report rate limiting inside an HTTP 200 JSON-RPC error.
+    // The existing paid route handlers recognize HTTP 429 as a retryable 503.
+    if (code === -32005) {
+      error.response = { status: 429, data: { error: message } };
+    }
     throw error;
   }
   if (!Object.hasOwn(payload, 'result')) {
