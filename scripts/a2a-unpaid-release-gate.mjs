@@ -38,8 +38,23 @@ await probe('A2A bad version', '/a2a', { method: 'POST', headers: { ...jsonHeade
   r.status === 200 && d?.error?.code === -32600);
 await probe('A2A 16KB body bound', '/a2a', { method: 'POST', headers: jsonHeaders, body: JSON.stringify({ big: 'x'.repeat(17000) }) }, (r, d) =>
   r.status === 413 && d?.error?.code === -32600);
-for (const path of ['/api/crypto-market', '/api/exchange-rate', '/api/trends', '/api/weather', '/api/sec-company', '/api/sports-game-brief']) {
+await probe('A2A malformed JSON', '/a2a', { method: 'POST', headers: jsonHeaders, body: '{bad-json' }, (r, d) =>
+  r.status === 400 && d?.jsonrpc === '2.0' && d?.error?.code === -32700);
+await probe('OpenAPI Base paths', '/openapi.json', { method: 'GET' }, (r, d) =>
+  r.status === 200 && d?.openapi === '3.1.0' &&
+  Boolean(d?.paths?.['/api/base-wallet-balance']?.get) &&
+  Boolean(d?.paths?.['/api/base-tx-status']?.get));
+for (const path of [
+  '/api/crypto-market', '/api/exchange-rate', '/api/trends', '/api/weather',
+  '/api/sec-company', '/api/sports-game-brief',
+  '/api/base-wallet-balance', '/api/base-tx-status',
+]) {
   await probe(`unpaid GET ${path}`, path, { method: 'GET' }, r => r.status === 402);
+}
+for (const path of ['/api/scrape', '/api/url-analyze', '/api/parse-receipt', '/api/website-research']) {
+  await probe(`unpaid POST ${path}`, path, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}',
+  }, r => r.status === 402);
 }
 for (const result of results) console.log(`${result.ok ? 'PASS' : 'FAIL'} ${result.name}: ${result.status}${result.reason ? ` (${result.reason})` : ''}`);
 const failed = results.filter(r => !r.ok).length;
