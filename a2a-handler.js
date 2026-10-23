@@ -53,6 +53,21 @@ export function handleA2ARequest(body, version = "1.0") {
 }
 
 export function registerA2ARoute(app) {
+  // The 16 KiB JSON parser runs before this handler. Normalize only /a2a
+  // parser errors; leave all paid-route parsing and middleware untouched.
+  app.use("/a2a", (err, _req, res, next) => {
+    if (err?.type === "entity.too.large") {
+      res.set("A2A-Version", "1.0");
+      res.set("Cache-Control", "no-store");
+      return res.status(413).json(errorResponse(null, -32600, "Request too large"));
+    }
+    if (err?.type === "entity.parse.failed") {
+      res.set("A2A-Version", "1.0");
+      res.set("Cache-Control", "no-store");
+      return res.status(400).json(errorResponse(null, -32700, "Parse error"));
+    }
+    return next(err);
+  });
   app.post("/a2a", (req, res) => {
     res.set("A2A-Version", "1.0");
     res.set("Cache-Control", "no-store");
