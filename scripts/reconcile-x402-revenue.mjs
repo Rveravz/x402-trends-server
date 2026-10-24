@@ -101,7 +101,26 @@ function selfTest() {
   try { reconcile([{...base,tx_hash:h},{...base,tx_hash:h,attribution:'test'}], null); }
   catch (e) { rejectedConflict = /Conflicting duplicate transfer event/.test(e.message); }
   if (!rejectedConflict) throw new Error('Conflicting duplicate must be rejected');
-  console.log('PASS offline reconciliation self-test (dedupe, conflicting duplicate, attribution, amount, delta)');
+  // Two independent transfers from one verified payer count as one buyer and one repeat buyer.
+  // Missing external verification must NEVER turn an attributed row into organic revenue.
+  const repeatRows = [
+    {...base,tx_hash:h},
+    {...base,tx_hash:j,paid_request_id:'req-2',amount_usdc:'0.020000'},
+    {...base,tx_hash:'0x' + 'd'.repeat(64),paid_request_id:'req-3',
+      amount_usdc:'0.030000',payer_verified_external:'false'},
+    {...base,tx_hash:'0x' + 'e'.repeat(64),paid_request_id:'req-4',
+      amount_usdc:'0.005000',attribution:'crawler'}
+  ];
+  const repeat = reconcile(repeatRows,{observed_inflow_usdc:'0.015000'});
+  if (repeat.observed_inflow_usdc !== '0.065000' ||
+      repeat.confirmed_organic_usdc !== '0.030000' ||
+      repeat.unattributed_usdc !== '0.030000' ||
+      repeat.excluded_test_verifier_usdc !== '0.005000' ||
+      repeat.unique_confirmed_organic_payers !== 1 ||
+      repeat.repeat_confirmed_organic_payers !== 1 ||
+      repeat.change_since_previous_snapshot_usdc !== '0.050000')
+    throw new Error('Repeat-buyer or unattributed-revenue self-test failed');
+  console.log('PASS offline reconciliation self-test (dedupe, conflict, attribution, repeat buyers, unknown revenue, amount, delta)');
 }
 const args = argv.slice(2);
 try {
