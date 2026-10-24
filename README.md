@@ -139,6 +139,17 @@ Paid routes declare Coinbase Bazaar discovery metadata with structured inputs, o
 
 The broader x402 ecosystem also maintains public discovery surfaces such as x402scan, Agentic.Market, Pay.sh, and Ampersend. The project is actively being optimized for legitimate discovery and real external usage rather than synthetic self-traffic.
 
+## Independently indexed directory pages
+
+As observed on 2026-10-23 (Pacific time), the service has public listings in these third-party indexes:
+
+- [Agenstry — x402 Agent Data API](https://agenstry.com/agents/x402-trends-server.onrender.com): AgentCard, discovery/uptime evidence, and wallet-inflow estimates.
+- [x402.new — Onrender provider directory](https://x402.new/providers/Onrender): paid-resource descriptions and historical marketplace call counters.
+- [brick.blue — A2A agent registry](https://brick.blue/agent/f0b9ccf36c43b65e): agent discovery and protocol checks.
+- [Agentery — API listing](https://www.aiboardmeeting.com/agents/x402_agent_data_api): per-endpoint descriptions and advertised prices.
+
+These are **independent directory listings, not evidence of confirmed organic customers**. Their scores and counters can lag production or include tests/crawlers. In particular, the two Base routes appearing in an AgentCard or third-party directory does not establish that Coinbase Bazaar has individually indexed them. Check actual merchant discovery and unpaid HTTP 402 challenges before claiming Bazaar coverage.
+
 ## Request an endpoint
 
 Have an agent workflow that needs a paid capability? Open an **Endpoint request** issue:
