@@ -84,6 +84,9 @@ function mockRoute() {
   let path;
   let handler;
   registerA2ARoute({
+    // Production registers route-scoped JSON parser error middleware first.
+    // This lightweight mock must implement both Express app.use and app.post.
+    use(route, fn) { assert.equal(route, "/a2a"); assert.equal(typeof fn, "function"); },
     post(route, fn) { path = route; handler = fn; },
   });
   function invoke(body, version) {
