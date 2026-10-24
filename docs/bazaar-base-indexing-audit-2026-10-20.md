@@ -20,3 +20,10 @@
 
 ## Safe limits
 No Render billing/plan changes, no secret reads or edits, no paid calls, no resource creation, no mass outreach, and no merge to `main` without regression evidence.
+
+## 2026-10-24 cross-directory evidence (read-only)
+- Agenstry's public agent page still lists 10 paid endpoint rows and omits both Base paths. This is **directory-specific visibility**, not evidence of missing Coinbase Bazaar records: https://agenstry.com/agents/x402-trends-server.onrender.com
+- Agentery's public profile **does** enumerate `baseWalletBalance` at $0.003 and `baseTxStatus` at $0.005 per call, including both exact GET paths: https://www.aiboardmeeting.com/agents/x402_agent_data_api . Its other machine-generated fields inconsistently label one Base endpoint as `$0` and claim no verified A2A endpoint; do not treat that directory as authoritative for pricing or A2A conformance.
+- The public AgentCard is retrievable at `/.well-known/agent-card.json`, but it currently advertises JSON-RPC at the server root. Agenstry reports a 404 for the advertised JSON-RPC interface; the draft branch's `/a2a` implementation has **not** been deployed.
+- An unauthenticated attempt to read Coinbase's public discovery catalog was inaccessible from the checking environment. Coinbase-specific inclusion, ranking, unique payer counts, and live payment challenges are therefore **not verified** by this audit. Never infer them from third-party directory counts.
+- Action: prioritize exact-resource verification against the official read-only discovery catalog when accessible, then fix any confirmed metadata drift on the draft branch. Do not send paid requests merely to trigger indexing.
