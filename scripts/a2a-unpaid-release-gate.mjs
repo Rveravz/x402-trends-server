@@ -3,6 +3,11 @@
 // Usage: node scripts/a2a-unpaid-release-gate.mjs [base-url]
 const base = (process.argv[2] || 'https://x402-trends-server.onrender.com').replace(/\/$/, '');
 const results = [];
+// A2A discovery must never carry an x402 challenge or settlement header.
+const paymentHeaders = ['payment-required', 'payment-response', 'payment-signature', 'x-payment', 'x-payment-required', 'x-payment-response'];
+function hasNoPaymentHeaders(response) {
+  return paymentHeaders.every(header => !response.headers.has(header));
+}
 async function probe(name, path, init, validate) {
   try {
     const response = await fetch(base + path, {
@@ -12,7 +17,7 @@ async function probe(name, path, init, validate) {
     const raw = await response.text();
     let data;
     try { data = JSON.parse(raw); } catch { data = null; }
-    results.push({ name, ok: Boolean(validate(response, data)), status: response.status });
+    results.push({ name, ok: Boolean(validate(response, data)) && (!name.startsWith('A2A ') || hasNoPaymentHeaders(response)), status: response.status });
   } catch (e) {
     results.push({ name, ok: false, status: 'ERROR', reason: String(e?.message || e) });
   }
