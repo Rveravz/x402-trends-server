@@ -5,6 +5,7 @@
 ![Payment](https://img.shields.io/badge/payment-USDC-2775CA)
 ![Version](https://img.shields.io/badge/version-2.6.0-2ea44f)
 ![Node](https://img.shields.io/badge/node-%3E%3D22-339933)
+[![Independent uptime checks](https://agenstry.com/badge/x402-trends-server.onrender.com/uptime.svg)](https://agenstry.com/agents/x402-trends-server.onrender.com)
 
 Production pay-per-request API server built for AI agents using the x402 payment protocol on Base Mainnet.
 
@@ -87,6 +88,22 @@ These routes do not require payment:
 - `GET /health` — health/status information
 - `GET /openapi.json` — OpenAPI description
 
+## Machine-readable discovery and release status
+
+The production service exposes free machine-readable discovery surfaces, including:
+
+- `GET /llms.txt` — concise agent-facing summary
+- `GET /.well-known/api-catalog` — API catalog linkset
+- `GET /agents.json` and `GET /.well-known/agents.json` — agent manifest
+- `GET /.well-known/agent-card.json` — A2A AgentCard
+- `GET /.well-known/x402.json` — x402 manifest
+
+**A2A release status:** The production AgentCard declares a JSON-RPC interface at the service root, where third-party monitoring reports HTTP 404. The `improve/a2a-jsonrpc-discovery-20261007` development branch changes the advertised interface to `/a2a` and implements a read-only `SendMessage` handler; neither change is deployed. Do not assume A2A works until full Express integration tests, unpaid HTTP 402 payment-regression checks, and a live no-payment JSON-RPC heartbeat pass.
+
+**Base endpoint indexing:** `/api/base-wallet-balance` and `/api/base-tx-status` are advertised in the manifest, but their presence in the Coinbase Bazaar resource index is not yet confirmed. A manifest entry is not evidence of Bazaar indexing or customer purchases. See [the unpaid indexing audit](docs/bazaar-base-indexing-audit-2026-10-20.md).
+
+**Upstream reliability:** Base's public RPC is rate-limited and is not intended for sustained production traffic. For the Base endpoints, use bounded polling, short-lived caching, explicit HTTP 429 handling and a documented upstream-failure response before increasing load. Do not silently switch to a paid RPC provider or create paid infrastructure. See [the operations runbook](docs/operations-revenue-reliability.md).
+
 ## For AI agents
 
 A normal unpaid request to a protected route returns HTTP `402 Payment Required` with x402 payment requirements. A compatible x402 client can read that challenge, authorize the Base USDC payment, retry the request, and receive JSON.
@@ -121,6 +138,18 @@ No traditional API subscription is required for the buyer.
 Paid routes declare Coinbase Bazaar discovery metadata with structured inputs, outputs, descriptions, and examples. The project is designed to be found by agents searching for capabilities rather than by a human memorizing endpoint names.
 
 The broader x402 ecosystem also maintains public discovery surfaces such as x402scan, Agentic.Market, Pay.sh, and Ampersend. The project is actively being optimized for legitimate discovery and real external usage rather than synthetic self-traffic.
+
+## Independently indexed directory pages
+
+Public listings were observed on 2026-10-23–24 (Pacific time) in these third-party indexes (each index may be stale):
+
+- [Agenstry — x402 Agent Data API](https://agenstry.com/agents/x402-trends-server.onrender.com): AgentCard, discovery/uptime evidence, and wallet-inflow estimates.
+- [x402.new — Onrender provider directory](https://x402.new/providers/Onrender): paid-resource descriptions and historical marketplace call counters.
+- [brick.blue — A2A agent registry](https://brick.blue/agent/f0b9ccf36c43b65e): agent discovery and protocol checks.
+- [Agentery — API listing](https://www.aiboardmeeting.com/agents/x402_agent_data_api): per-endpoint descriptions and advertised prices.
+- [Paywitness — independent x402 preflight index](https://paywitness.ai/): an archived listing for `/api/crypto-market` with a grade of 100 dated **2026-09-05**; this is not a current paid-delivery or uptime verification.
+
+These are **independent directory listings, not evidence of confirmed organic customers**. Their scores and counters can lag production or include tests/crawlers. In particular, the two Base routes appearing in an AgentCard or third-party directory does not establish that Coinbase Bazaar has individually indexed them. Check actual merchant discovery and unpaid HTTP 402 challenges before claiming Bazaar coverage.
 
 ## Request an endpoint
 

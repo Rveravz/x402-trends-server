@@ -1,5 +1,6 @@
 import express from "express";
 import axios from "axios";
+import { unwrapBaseRpcResult } from "./base-rpc-response.js";
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 
@@ -7,6 +8,7 @@ import { paymentMiddleware } from "@x402/express";
 import { x402ResourceServer } from "@x402/core/server";
 import { ExactEvmScheme } from "@x402/evm/exact/server";
 import { createCdpFacilitatorClient } from "@coinbase/cdp-sdk/x402";
+import { registerA2ARoute } from "./a2a-handler.js";
 import {
   declareDiscoveryExtension,
   bazaarResourceServerExtension,
@@ -15,6 +17,13 @@ import {
 const app = express();
 app.set("trust proxy", true);
 app.disable("x-powered-by");
+// Enforce the A2A request limit at HTTP ingress before the shared JSON parser.
+app.use("/a2a", express.json({ limit: "16kb" }));
+
+// Free, read-only A2A discovery. Register before x402 payment middleware.
+registerA2ARoute(app);
+
+// Preserve the existing 1 MB parser for all other routes, including paid APIs.
 app.use(express.json({ limit: "1mb" }));
 
 const VERSION = "2.6.0";
@@ -2313,16 +2322,7 @@ async function baseRpc(method, params = []) {
     }
   );
 
-  if (response.data?.error) {
-    const rpcError = new Error(
-      response.data.error.message || `Base RPC error ${response.data.error.code || "unknown"}`
-    );
-
-    rpcError.rpcCode = response.data.error.code;
-    throw rpcError;
-  }
-
-  return response.data?.result;
+  return unwrapBaseRpcResult(response.data, id);
 }
 
 function pruneSimpleCache(cache, maxEntries = 500) {
