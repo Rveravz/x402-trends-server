@@ -23,6 +23,13 @@ This runbook prevents on-chain wallet inflow and Bazaar counters from being misr
 - A trailing 30-day total can remain unchanged while new sales and old sales age out. For hourly delta use new finalized transactions between check timestamps, not subtraction of trailing totals alone.
 - If no fresh source is available, report `unknown`, not zero. Never treat lack of logs as proof of zero traffic.
 
+## Directory freshness and conflicting counters (2026-10-24 audit)
+- Always record the directory's **data-as-of** timestamp separately from the time the page was fetched. A page crawled today can display stale payment statistics.
+- On 2026-10-24, x402.new still displayed **8 calls / 4 payer wallets** for the Crypto Market resource with **Sep 9** as its last-called date, and **6 calls / 3 payer wallets** for Weather with **Aug 31** as its last-called date. Do not present these counters as new purchases in the last hour or independently confirmed rolling-30-day demand. They are stale or have inconsistent date labels.
+- Agenstry displayed **$1.19 / 78 transfers** in a 30-day wallet-inflow panel synced **Oct 22**, while its attribution analysis used **$1.14 / 77 transfers**. brick.blue independently displayed **$1.14 / 78 settlements**. These represent different scopes, snapshots or classification rules until reconciled transaction-by-transaction; **never add them together** or silently substitute one for another.
+- The Agenstry 5/5 `independently_paid` heuristic is useful third-party evidence, but it does **not** establish that an identifiable external customer paid for and received a protected API response. Maintain the strict confirmed-organic classification above.
+- Compare hourly deltas from newly observed, finalized, deduplicated transfer IDs or trustworthy request/settlement joins. If sources have not advanced since the prior run, report **published snapshot unchanged; actual hourly delta unknown**, rather than claiming no new purchases occurred.
+
 ## Minimum hourly report
 `REVENUE — Confirmed organic: $X verified | Observed on-chain inflow (30d): $Y | Since last check: $Z confirmed organic / $W observed (or unknown)`
 
