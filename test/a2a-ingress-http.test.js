@@ -74,3 +74,27 @@ test("malformed A2A JSON fails without reaching any paid route", async () => {
     assert.equal(json.error.code, -32700);
   });
 });
+
+test("A2A HTTP rejects unsupported methods and versions without invoking payment", async () => {
+  await withLocalServer(async base => {
+    const unsupported = await post(base + "/a2a", { ...a2aMessage(), id: 19, method: "message/send" });
+    assert.equal(unsupported.status, 200);
+    assert.equal(unsupported.headers.get("cache-control"), "no-store");
+    assert.equal(unsupported.headers.get("payment-required"), null);
+    const unknownMethod = await unsupported.json();
+    assert.equal(unknownMethod.id, 19);
+    assert.equal(unknownMethod.error.code, -32601);
+
+    const oldVersion = await fetch(base + "/a2a", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "A2A-Version": "0.3" },
+      body: JSON.stringify(a2aMessage()),
+    });
+    assert.equal(oldVersion.status, 200);
+    assert.equal(oldVersion.headers.get("a2a-version"), "1.0");
+    assert.equal(oldVersion.headers.get("payment-required"), null);
+    const unsupportedVersion = await oldVersion.json();
+    assert.equal(unsupportedVersion.id, "offline-test");
+    assert.equal(unsupportedVersion.error.code, -32600);
+  });
+});
