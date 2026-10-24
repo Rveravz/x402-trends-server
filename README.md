@@ -141,12 +141,13 @@ The broader x402 ecosystem also maintains public discovery surfaces such as x402
 
 ## Independently indexed directory pages
 
-As observed on 2026-10-23 (Pacific time), the service has public listings in these third-party indexes:
+Public listings were observed on 2026-10-23–24 (Pacific time) in these third-party indexes (each index may be stale):
 
 - [Agenstry — x402 Agent Data API](https://agenstry.com/agents/x402-trends-server.onrender.com): AgentCard, discovery/uptime evidence, and wallet-inflow estimates.
 - [x402.new — Onrender provider directory](https://x402.new/providers/Onrender): paid-resource descriptions and historical marketplace call counters.
 - [brick.blue — A2A agent registry](https://brick.blue/agent/f0b9ccf36c43b65e): agent discovery and protocol checks.
 - [Agentery — API listing](https://www.aiboardmeeting.com/agents/x402_agent_data_api): per-endpoint descriptions and advertised prices.
+- [Paywitness — independent x402 preflight index](https://paywitness.ai/): an archived listing for `/api/crypto-market` with a grade of 100 dated **2026-09-05**; this is not a current paid-delivery or uptime verification.
 
 These are **independent directory listings, not evidence of confirmed organic customers**. Their scores and counters can lag production or include tests/crawlers. In particular, the two Base routes appearing in an AgentCard or third-party directory does not establish that Coinbase Bazaar has individually indexed them. Check actual merchant discovery and unpaid HTTP 402 challenges before claiming Bazaar coverage.
 
